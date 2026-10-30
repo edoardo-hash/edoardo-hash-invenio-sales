@@ -200,10 +200,9 @@ export async function exportDict(lang: Lang): Promise<Stored> {
     SECTIONS.map(({ section, strings, hash }) =>
       unstable_cache(() => translateSection(lang, section, strings, token), ["dict", PROMPT_VERSION, lang, section, hash], { revalidate: false, tags: ["dict"] })().then((done) => {
         for (const [k, en] of Object.entries(strings)) {
-          if (done[k] && done[k] !== en) {
-            translations[k] = done[k];
-            source[k] = en;
-          }
+          // Every key, identical ones too ("WhatsApp {phone}"), so a complete section never calls the model again.
+          translations[k] = done[k] || en;
+          source[k] = en;
         }
       }),
     ),
