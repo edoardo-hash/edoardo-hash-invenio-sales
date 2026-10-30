@@ -12,6 +12,10 @@ const LOCALES = ["es", "it", "nl"];
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === "/portal" || pathname.startsWith("/portal/")) return portal(req);
+  // Whole-site lock (Edo, 30 Oct 2026: only he has access to dev): with SITE_PASSWORD set on a branch, every public
+  // page asks for it too. The dev branch sets PORTAL_PASSWORD to the same value, so one sign-in covers both.
+  const sitePass = process.env.SITE_PASSWORD;
+  if (sitePass && basicPassword(req) !== sitePass) return askPassword("Invenio sales (development)");
 
   const seg = pathname.split("/")[1] ?? "";
   if (seg === "en") {
@@ -53,9 +57,20 @@ function portal(req: NextRequest) {
       return NextResponse.next({ request: { headers } });
     }
   }
-  return new NextResponse("Sign in to the Invenio sales portal.", {
+  return askPassword("Invenio sales portal");
+}
+
+function basicPassword(req: NextRequest): string | null {
+  const auth = req.headers.get("authorization") ?? "";
+  if (!auth.startsWith("Basic ")) return null;
+  const decoded = atob(auth.slice(6));
+  return decoded.slice(decoded.indexOf(":") + 1);
+}
+
+function askPassword(realm: string) {
+  return new NextResponse(`Sign in to ${realm}.`, {
     status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Invenio sales portal", charset="UTF-8"' },
+    headers: { "WWW-Authenticate": `Basic realm="${realm}", charset="UTF-8"` },
   });
 }
 
