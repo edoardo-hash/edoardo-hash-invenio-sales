@@ -6,6 +6,18 @@ import { getVercelOidcToken } from "@vercel/oidc";
 import { EN, type Dict } from "./en";
 import { LANG_ENGLISH, type Lang } from ".";
 import { OVERRIDES } from "./overrides";
+import ES from "./static/es.json";
+import IT from "./static/it.json";
+import NL from "./static/nl.json";
+
+/**
+ * Stored translations (design critique, 30 Oct 2026: a cold cache showed English pages under /es, /it, /nl).
+ * src/lib/i18n/static/<lang>.json holds DeepSeek's full translation of the dictionary, exported from dev
+ * (/portal/i18n-export?lang=xx) and committed, with the English each value was made from. A value counts only while
+ * its English is unchanged; new or changed strings are translated at runtime as before until the next export.
+ */
+type Stored = { source: Record<string, string>; translations: Record<string, string> };
+const STORED: Partial<Record<Lang, Stored>> = { es: ES as Stored, it: IT as Stored, nl: NL as Stored };
 
 /**
  * Translations by the low-cost text model, as in invenio-portal src/lib/ai-text.ts: DeepSeek through the Vercel AI
@@ -112,11 +124,20 @@ const sleep = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null),
  */
 export async function getDict(lang: Lang): Promise<Dict> {
   if (lang === "en") return EN;
-  const token = await gatewayToken();
+  const stored = STORED[lang];
   const merged: Flat = {};
+  const missing = SECTIONS.filter(({ strings }) => {
+    let complete = true;
+    for (const [k, en] of Object.entries(strings)) {
+      if (stored?.source[k] === en && stored.translations[k]) merged[k] = stored.translations[k];
+      else complete = false;
+    }
+    return !complete;
+  });
+  const token = missing.length ? await gatewayToken() : null;
   const pending: Promise<unknown>[] = [];
   await Promise.all(
-    SECTIONS.map(async ({ section, strings, hash }) => {
+    missing.map(async ({ section, strings, hash }) => {
       const key = `dict:${lang}:${section}`;
       if (coolingDown(key)) return;
       const job = unstable_cache(() => translateSection(lang, section, strings, token), ["dict", PROMPT_VERSION, lang, section, hash], { revalidate: false, tags: ["dict"] })().catch(
@@ -127,8 +148,12 @@ export async function getDict(lang: Lang): Promise<Dict> {
         },
       );
       const done = await Promise.race([job, sleep(WAIT_MS)]);
-      if (done) Object.assign(merged, done);
-      else pending.push(job);
+      // Stored values win; the runtime fills only what the stored file lacks.
+      if (done) {
+        for (const [k, v] of Object.entries(done)) if (!(k in merged)) merged[k] = v;
+      } else {
+        pending.push(job);
+      }
     }),
   );
   if (pending.length) after(() => Promise.allSettled(pending));
@@ -161,4 +186,29 @@ export async function translateText(lang: Lang, text: string | null): Promise<st
   if (done) return done;
   after(() => job);
   return text; // English this time; translated for the next visitor
+}
+
+/**
+ * The whole dictionary translated, waiting as long as it takes (no 2.5 s cap): what /portal/i18n-export returns,
+ * to be saved as src/lib/i18n/static/<lang>.json. Uses the same cache as the pages.
+ */
+export async function exportDict(lang: Lang): Promise<Stored> {
+  const token = await gatewayToken();
+  const translations: Flat = {};
+  const source: Flat = {};
+  const results = await Promise.allSettled(
+    SECTIONS.map(({ section, strings, hash }) =>
+      unstable_cache(() => translateSection(lang, section, strings, token), ["dict", PROMPT_VERSION, lang, section, hash], { revalidate: false, tags: ["dict"] })().then((done) => {
+        for (const [k, en] of Object.entries(strings)) {
+          if (done[k] && done[k] !== en) {
+            translations[k] = done[k];
+            source[k] = en;
+          }
+        }
+      }),
+    ),
+  );
+  const failed = results.filter((r) => r.status === "rejected").length;
+  if (failed) throw new Error(`${failed} section(s) failed to translate; try again`);
+  return { source, translations };
 }

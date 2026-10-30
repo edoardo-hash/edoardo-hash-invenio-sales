@@ -7,6 +7,17 @@ import { eur } from "@/lib/rules";
 
 export async function SiteHeader({ t, lang, current }: { t: Dict; lang: Lang; current?: "properties" | "sell" }) {
   const path = (await headers()).get("x-path") || "/";
+  const links = (
+    <>
+      <Link href={href(lang, "/properties")} aria-current={current === "properties" ? "page" : undefined}>{t.nav.properties}</Link>
+      <Link href={href(lang, "/sell")} aria-current={current === "sell" ? "page" : undefined}>{t.nav.sell}</Link>
+      <a href="https://inveniohomes.com">{t.nav.rentals}</a>
+      <a href={`${href(lang, "/")}#about`}>{t.nav.about}</a>
+    </>
+  );
+  const langs = LANGS.map((l) => (
+    <a key={l} href={href(l, path)} hrefLang={l} lang={l} aria-current={l === lang ? "true" : undefined} title={LANG_NAMES[l]}>{l.toUpperCase()}</a>
+  ));
   return (
     <header className="site-head">
       <div className="wrap">
@@ -15,19 +26,21 @@ export async function SiteHeader({ t, lang, current }: { t: Dict; lang: Lang; cu
           <img src="/invenio-logo.svg" alt="Invenio Homes" />
           <span>{t.nav.sales}</span>
         </Link>
-        <nav className="site-nav" aria-label="Main">
-          <Link href={href(lang, "/properties")} aria-current={current === "properties" ? "page" : undefined}>{t.nav.properties}</Link>
-          <Link href={href(lang, "/sell")} aria-current={current === "sell" ? "page" : undefined}>{t.nav.sell}</Link>
-          <a href="https://inveniohomes.com">{t.nav.rentals}</a>
-          <Link href={`${href(lang, "/")}#about`}>{t.nav.about}</Link>
-        </nav>
+        <nav className="site-nav" aria-label="Main">{links}</nav>
         <div className="head-cta">
-          <nav aria-label={t.nav.language} className="langs">
-            {LANGS.map((l) => (
-              <a key={l} href={href(l, path)} hrefLang={l} lang={l} aria-current={l === lang ? "true" : undefined} title={LANG_NAMES[l]}>{l.toUpperCase()}</a>
-            ))}
-          </nav>
-          <Link className="btn solid" href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</Link>
+          <nav aria-label={t.nav.language} className="langs">{langs}</nav>
+          {/* A plain link, so the jump to the form on another page always scrolls. */}
+          <a className="btn solid" href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</a>
+          {/* Phones (design critique, 30 Oct 2026): the links and languages go into one menu, no script needed. */}
+          <details className="mmenu">
+            <summary aria-label={t.nav.menu}>
+              <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M0 1h20M0 7h20M0 13h20" stroke="currentColor" strokeWidth="1.5" /></svg>
+            </summary>
+            <div className="mmenu-panel">
+              <nav aria-label="Main">{links}</nav>
+              <nav aria-label={t.nav.language} className="langs">{langs}</nav>
+            </div>
+          </details>
         </div>
       </div>
     </header>
@@ -42,9 +55,9 @@ export function SiteFooter({ t, lang }: { t: Dict; lang: Lang }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/invenio-logo.svg" alt="Invenio Homes" />
           <div className="foot-cols">
-            <div><b>{t.footer.sales}</b><Link href={href(lang, "/properties")}>{t.nav.properties}</Link><Link href={href(lang, "/sell")}>{t.nav.sell}</Link><Link href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</Link></div>
+            <div><b>{t.footer.sales}</b><Link href={href(lang, "/properties")}>{t.nav.properties}</Link><Link href={href(lang, "/sell")}>{t.nav.sell}</Link><a href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</a></div>
             <div><b>{t.footer.company}</b><a href="https://inveniohomes.com">{t.footer.villaRentals}</a><Link href="/portal">{t.nav.agentSignIn}</Link></div>
-            <div><b>{t.footer.contact}</b><a href="mailto:david@inveniohomes.com">david@inveniohomes.com</a><a href="https://wa.me/34671349592">+34 671 349 592</a><span>Ibiza · Formentera</span></div>
+            <div><b>{t.footer.contact}</b><a href="mailto:david@inveniohomes.com">david@inveniohomes.com</a><a href="https://wa.me/34671349592">{fmt(t.footer.whatsapp, { phone: "+34 671 349 592" })}</a><span>Ibiza · Formentera</span></div>
           </div>
         </div>
         <div className="foot-bottom"><span>© 2026 Invenio Homes SL · {t.footer.register}</span><span>{t.footer.legal}</span></div>

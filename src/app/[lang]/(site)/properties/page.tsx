@@ -7,6 +7,7 @@ import { getDict } from "@/lib/i18n/translate";
 import { DbNotice, ListingCard, SiteFooter, SiteHeader } from "@/components/site";
 import { BriefForm } from "@/components/brief-form";
 import { MustHaveChips } from "@/components/must-haves";
+import { FEW_LISTINGS } from "@/lib/catalogue";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export default async function Properties({ params, searchParams }: { params: Par
   const sp = await searchParams;
   const [t, res] = await Promise.all([getDict(lang), publicListings()]);
   const all = res.ok ? res.data : [];
+  // Few listings: no filters, which would mostly lead to empty pages (design critique, 30 Oct 2026).
+  const showFilters = all.length >= FEW_LISTINGS;
   const areas = [...new Set(all.map((l) => l.area))].sort();
   const area = one(sp.area);
   const [lo, hi] = one(sp.price).split("-").map((x) => (x ? Number(x) * 1e6 : null));
@@ -57,6 +60,7 @@ export default async function Properties({ params, searchParams }: { params: Par
           </div>
         </section>
 
+        {showFilters ? (
         <section className="wrap">
           <form aria-label={t.list.filterAria} className="stack" style={{ gap: 18, borderTop: "1px solid var(--hair)", borderBottom: "1px solid var(--hair)", padding: "24px 0" }}>
             <div className="cols">
@@ -90,6 +94,7 @@ export default async function Properties({ params, searchParams }: { params: Par
             <div className="inline"><button className="btn solid" type="submit">{t.list.show}</button><Link className="lnk" href={href(lang, "/properties")}>{t.list.clear}</Link></div>
           </form>
         </section>
+        ) : null}
 
         <section className="wrap" style={{ paddingTop: 40, paddingBottom: "var(--sec)" }}>
           {!res.ok ? <DbNotice reason={res.reason} t={t} /> : list.length ? (

@@ -4,6 +4,8 @@ import { publicListings } from "@/lib/data";
 import { href, isLang, type Lang } from "@/lib/i18n";
 import { getDict } from "@/lib/i18n/translate";
 import { Arrow, DbNotice, ListingCard, SiteFooter, SiteHeader } from "@/components/site";
+import { BriefForm } from "@/components/brief-form";
+import { FEW_LISTINGS, SEARCH_FORM_FROM } from "@/lib/catalogue";
 
 export const dynamic = "force-dynamic";
 type Params = Promise<{ lang: string }>;
@@ -17,7 +19,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function Home({ params }: { params: Params }) {
   const lang = L((await params).lang);
   const [t, res] = await Promise.all([getDict(lang), publicListings()]);
-  const featured = res.ok ? res.data.filter((l) => l.status === "approved").slice(0, 3) : [];
+  const count = res.ok ? res.data.length : 0;
+  // Few listings: lead with the brief and off-market access, show what we have as "featured" (design critique, 30 Oct 2026).
+  const few = count < FEW_LISTINGS;
+  const featured = res.ok ? (few ? res.data : res.data.filter((l) => l.status === "approved")).slice(0, 3) : [];
+  const briefHref = few ? "#brief" : `${href(lang, "/properties")}#brief`;
   const areas = res.ok ? [...new Set(res.data.map((l) => l.area))].sort() : [];
   const h = t.home;
 
@@ -35,13 +41,23 @@ export default async function Home({ params }: { params: Params }) {
               <h1 className="h1">{h.title}</h1>
               <p className="lead">{h.lead}</p>
               <div className="actions">
-                <Link className="btn solid" href={href(lang, "/properties")}>{h.seeProperties}</Link>
-                <Link className="lnk" href={href(lang, "/sell")}>{h.sellingCta}</Link>
+                {few ? (
+                  <>
+                    <a className="btn solid" href="#brief">{t.nav.sendBrief}</a>
+                    <Link className="lnk" href={href(lang, "/properties")}>{h.seeProperties}</Link>
+                  </>
+                ) : (
+                  <>
+                    <Link className="btn solid" href={href(lang, "/properties")}>{h.seeProperties}</Link>
+                    <Link className="lnk" href={href(lang, "/sell")}>{h.sellingCta}</Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </section>
 
+        {count >= SEARCH_FORM_FROM ? (
         <section className="wrap">
           <form action={href(lang, "/properties")} aria-label={t.search.aria} className="cols" style={{ background: "var(--card)", border: "1px solid var(--hair)", padding: "22px 24px" }}>
             <div className="field">
@@ -66,12 +82,13 @@ export default async function Home({ params }: { params: Params }) {
             <button className="btn solid" type="submit" style={{ width: "100%" }}>{t.search.go}</button>
           </form>
         </section>
+        ) : null}
 
         <section className="section">
           <div className="wrap">
             <div className="head">
               <div className="stack">
-                <p className="eb">{h.forSaleNow}</p>
+                <p className="eb">{few && count ? h.featured : h.forSaleNow}</p>
                 <h2 className="h2">{h.checkedTitle}</h2>
                 <p className="lead">{h.checkedLead}</p>
               </div>
@@ -85,6 +102,18 @@ export default async function Home({ params }: { params: Params }) {
           </div>
         </section>
 
+        {few ? (
+          <section id="brief" className="section hair-top">
+            <div className="wrap split">
+              <div className="stack" style={{ gap: 18 }}>
+                <p className="eb">{h.privateEyebrow}</p>
+                <h2 className="h2">{h.privateTitle}</h2>
+                <p className="lead">{h.privateLead}</p>
+              </div>
+              <BriefForm t={t} lang={lang} />
+            </div>
+          </section>
+        ) : (
         <section className="hair-top" style={{ padding: "clamp(64px,7vw,96px) 0" }}>
           <div className="wrap split">
             <div className="stack" style={{ gap: 0 }}>
@@ -101,6 +130,7 @@ export default async function Home({ params }: { params: Params }) {
             </div>
           </div>
         </section>
+        )}
 
         <section className="section band">
           <div className="wrap stack" style={{ gap: 40 }}>
@@ -138,7 +168,7 @@ export default async function Home({ params }: { params: Params }) {
             </div>
             <div className="stack" style={{ gap: 20 }}>
               <p className="lead">{h.contactLead}</p>
-              <div className="actions"><Link className="btn solid" href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</Link><a className="lnk" href="mailto:david@inveniohomes.com">david@inveniohomes.com</a></div>
+              <div className="actions"><a className="btn solid" href={briefHref}>{t.nav.sendBrief}</a><a className="lnk" href="mailto:david@inveniohomes.com">david@inveniohomes.com</a></div>
             </div>
           </div>
         </section>
