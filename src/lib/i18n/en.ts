@@ -15,6 +15,8 @@ export const EN = {
     sales: "Sales",
     homeAria: "Invenio Homes sales home",
     language: "Language",
+    menu: "Menu",
+    closeMenu: "Close menu",
   },
   footer: {
     sales: "Sales",
@@ -23,6 +25,7 @@ export const EN = {
     villaRentals: "Villa rentals",
     register: "Balearic agents register GOIBE766172/2024",
     legal: "Privacy · Terms · Cookies",
+    whatsapp: "WhatsApp {phone}",
   },
   card: {
     meta: "Ref. {ref} · {beds} bedrooms, {baths} baths",
@@ -87,6 +90,10 @@ export const EN = {
     contactEyebrow: "Your contact",
     headOfSales: "Head of Sales, Invenio Homes",
     contactLead: "Tell us what you are looking for, including homes that are not on this page. Some owners only sell privately to registered buyers.",
+    featured: "Featured",
+    privateEyebrow: "Off-market",
+    privateTitle: "Most of what we sell never reaches a website",
+    privateLead: "Many owners sell privately, to registered buyers only. Tell us what you are looking for and we will show you what fits, public or not.",
   },
   list: {
     eyebrow: "Properties for sale",
@@ -102,7 +109,7 @@ export const EN = {
     mustHaves: "Must-haves",
     show: "Show results",
     clear: "Clear",
-    nothing: "Nothing matches these filters. Send us your brief below: some homes are only shown privately.",
+    nothing: "Nothing public in this range; we have private listings. Send your brief.",
   },
   brief: {
     eyebrow: "Buyer brief",
