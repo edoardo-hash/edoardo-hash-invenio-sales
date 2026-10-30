@@ -8,6 +8,9 @@ Calacatta design (Hanken Grotesk only, Light headings), built from the "Invenio 
 ## Rules kept from the portal
 
 - Sales always show the reference (`V-` + first 6 characters of the villa uuid), never the villa name.
+- Exception (Edo, 30 Oct 2026): in the portal, admins see the villa's Invenio name and real name under the reference.
+  Admin = signed in with `PORTAL_PASSWORD`; `PORTAL_AGENT_PASSWORD` (optional, for external sales agents) sees references only.
+  The public site never receives either name.
 - The public site lists only approved / under-offer listings that are not off-market, Invenio Homes brand only (IH and LV never mix).
 - No exact location: the area only. The price shown is always the mandate price (no agent markup).
 - Matching logic is copied from `invenio-portal` `src/lib/sales/rules.ts`; keep the two in step.

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { activities, allListings, clause7State, docProgress, findByRef, listRequests, sentVillas } from "@/lib/data";
 import { day, eur, isLicensed, OFFER_TOTAL, PUBLISH_KEYS, requestStatusLabel, saleStatus } from "@/lib/rules";
-import { PageHead, PortalShell } from "@/components/portal";
+import { isPortalAdmin, PageHead, PortalShell, VillaNames } from "@/components/portal";
 import { FEATURE_GROUPS, FEATURES, featureText, GROUP_LABELS, FEATURE_LABELS } from "@/lib/features";
 import { DbNotice } from "@/components/site";
 
@@ -25,7 +25,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
   const l = await findByRef(res.data, ref);
   if (!l) notFound();
 
-  const [docs, sent, acts, reqs] = await Promise.all([docProgress([l.uuid]), sentVillas({ uuid: l.uuid }), activities({ uuid: l.uuid }), listRequests()]);
+  const [docs, sent, acts, reqs, admin] = await Promise.all([docProgress([l.uuid]), sentVillas({ uuid: l.uuid }), activities({ uuid: l.uuid }), listRequests(), isPortalAdmin()]);
   const d = docs.get(l.uuid);
   const st = saleStatus(l.status);
   const reqById = new Map((reqs.ok ? reqs.data : []).map((r) => [r.id, r]));
@@ -45,7 +45,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
       <PageHead
         eyebrow={`${l.area} · ${l.legalBedrooms ?? l.bedrooms} bedrooms, ${l.bathrooms} baths`}
         title={<span className="inline" style={{ gap: 14 }}>{l.ref} <span className={`st ${st.tone}`}>{st.label}</span></span>}
-        intro={l.approvedBy ? `Approved by ${l.approvedBy}` : "Not approved yet"}
+        intro={<><VillaNames admin={admin} invenioName={l.invenioName} realName={l.realName} />{l.approvedBy ? `Approved by ${l.approvedBy}` : "Not approved yet"}</>}
         actions={<>{live ? <Link className="btn" href={`/properties/${encodeURIComponent(l.ref)}`}>View on website</Link> : null}<a className="btn solid" href={`https://ihtest.invenio.tools/villa/${l.uuid}/edit?tab=sale`}>Edit in the portal</a></>}
       />
 

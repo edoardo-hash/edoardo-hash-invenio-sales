@@ -1,4 +1,22 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+
+/** Signed in with the admin password (set by the middleware, never by the browser). */
+export async function isPortalAdmin(): Promise<boolean> {
+  return (await headers()).get("x-portal-role") === "admin";
+}
+
+/** Admins only: "Invenio name · real name" under a reference. Renders nothing for anyone else. */
+export function VillaNames({ admin, invenioName, realName, block = true }: { admin: boolean; invenioName: string | null; realName: string | null; block?: boolean }) {
+  if (!admin || (!invenioName && !realName)) return null;
+  const same = invenioName && realName && invenioName.trim().toLowerCase() === realName.trim().toLowerCase();
+  return (
+    <span className="small" style={{ display: block ? "block" : "inline" }}>
+      {invenioName ? <>Invenio: <span style={{ color: "var(--ink)" }}>{invenioName}</span></> : null}
+      {realName && !same ? <>{invenioName ? " · " : ""}Real: <span style={{ color: "var(--ink)" }}>{realName}</span></> : null}
+    </span>
+  );
+}
 
 export function PortalShell({ current, children }: { current: "sale" | "requests"; children: React.ReactNode }) {
   return (

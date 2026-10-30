@@ -32,6 +32,12 @@ export interface Listing extends MatchListing {
   saleFeatures: FeatureSet;
   /** Road km (OSRM, as the portal's area data), never minutes. */
   road: RoadKm | null;
+  /**
+   * Admins only (Edo, 30 Oct 2026): Invenio's public name for the villa and the owner's real name.
+   * Never on the public site (publicListings drops them) and never for agent logins (see isPortalAdmin).
+   */
+  invenioName: string | null;
+  realName: string | null;
 }
 
 export interface RoadKm {
@@ -92,6 +98,8 @@ function toListing(r: Row): Listing {
     brand: str(v.brand) ?? "IH",
     area: str(v.area) ?? "Ibiza",
     district: str(v.district) ?? "",
+    invenioName: str(v.uniqueName),
+    realName: str(v.originalName),
     bedrooms: Number(v.bedrooms ?? 0),
     bathrooms: Number(v.bathrooms ?? 0),
     licence: str(v.licence),
@@ -171,7 +179,8 @@ export const publicListings = () =>
     withFeatures(
       (await q<Row>(`${LISTING_SQL} and vs.status in ('approved', 'under_offer') and not vs.off_market order by vs.asking_price_eur nulls last`))
         .map(toListing)
-        .filter((l) => l.brand === "IH"),
+        .filter((l) => l.brand === "IH")
+        .map((l) => ({ ...l, invenioName: null, realName: null })), // the public site never gets villa names
     ),
   );
 
@@ -182,8 +191,9 @@ export async function findByRef(list: Listing[], ref: string) {
 /** Villas the HAM sheet flags for sale with no portal listing yet (to be rechecked). */
 export const sheetOnly = () =>
   load(async () =>
-    q<{ uuid: string; area: string | null; bedrooms: number | null; price: string | null; sales_contact: string | null; action: string | null }>(
-      `select s.villa_uuid::text as uuid, s.area, s.bedrooms, coalesce(s.confirmed_price_eur, s.price_for_portal_eur, s.current_price_eur)::text as price,
+    q<{ uuid: string; invenio_name: string | null; real_name: string | null; area: string | null; bedrooms: number | null; price: string | null; sales_contact: string | null; action: string | null }>(
+      `select s.villa_uuid::text as uuid, s.unique_name as invenio_name, s.villa_name as real_name, s.area, s.bedrooms,
+              coalesce(s.confirmed_price_eur, s.price_for_portal_eur, s.current_price_eur)::text as price,
               s.sales_contact, s.action
          from villa_sale_status s left join villa_sale v on v.villa_uuid = s.villa_uuid
         where s.removed_at is null and v.villa_uuid is null

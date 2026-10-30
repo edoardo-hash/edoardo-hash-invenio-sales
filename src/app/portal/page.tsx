@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { allListings, docProgress, listRequests, sheetOnly } from "@/lib/data";
 import { eur, PUBLISH_KEYS, REQUEST_STATUSES, SALE_STATUSES, saleStatus } from "@/lib/rules";
-import { PageHead, PortalShell, Thumb } from "@/components/portal";
+import { isPortalAdmin, PageHead, PortalShell, Thumb, VillaNames } from "@/components/portal";
 import { DbNotice } from "@/components/site";
 
 export const dynamic = "force-dynamic";
@@ -10,14 +10,17 @@ export const metadata: Metadata = { title: "Portal · For sale" };
 
 export default async function ForSale({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const [res, sheet, reqs] = await Promise.all([allListings(), sheetOnly(), listRequests()]);
+  const [res, sheet, reqs, admin] = await Promise.all([allListings(), sheetOnly(), listRequests(), isPortalAdmin()]);
   if (!res.ok) return <PortalShell current="sale"><PageHead title="For sale" /><DbNotice reason={res.reason} message={res.message} /></PortalShell>;
 
   const listings = res.data;
   const docs = await docProgress(listings.map((l) => l.uuid));
   const status = sp.status && SALE_STATUSES.some((s) => s.key === sp.status) ? sp.status : null;
   const q = (sp.q ?? "").toLowerCase().trim();
-  const rows = listings.filter((l) => (!status || l.status === status) && (!q || l.ref.toLowerCase().includes(q) || l.area.toLowerCase().includes(q)));
+  const hit = (l: (typeof listings)[number]) =>
+    l.ref.toLowerCase().includes(q) || l.area.toLowerCase().includes(q) ||
+    (admin && [l.invenioName, l.realName].some((n) => n?.toLowerCase().includes(q)));
+  const rows = listings.filter((l) => (!status || l.status === status) && (!q || hit(l)));
   const open = reqs.ok ? reqs.data.filter((r) => REQUEST_STATUSES.find((s) => s.key === r.status)?.open).length : 0;
 
   return (
@@ -39,7 +42,7 @@ export default async function ForSale({ searchParams }: { searchParams: Promise<
 
       <div className="panel">
         <form className="cols" style={{ padding: "18px 20px", borderBottom: "1px solid var(--hair)" }}>
-          <div className="field"><label htmlFor="q">Search</label><input id="q" name="q" type="search" placeholder="Reference or area" defaultValue={sp.q ?? ""} /></div>
+          <div className="field"><label htmlFor="q">Search</label><input id="q" name="q" type="search" placeholder={admin ? "Reference, area or villa name" : "Reference or area"} defaultValue={sp.q ?? ""} /></div>
           <div className="field">
             <label htmlFor="s">Status</label>
             <select id="s" name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{SALE_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
@@ -58,7 +61,7 @@ export default async function ForSale({ searchParams }: { searchParams: Promise<
                     <td>
                       <Link href={`/portal/listings/${encodeURIComponent(l.ref)}`} className="inline" style={{ gap: 12, flexWrap: "nowrap" }}>
                         <Thumb src={l.photos[0]} />
-                        <span><b style={{ fontWeight: 500, display: "block" }}>{l.ref}</b><span className="small">{l.area}</span></span>
+                        <span><b style={{ fontWeight: 500, display: "block" }}>{l.ref}</b><VillaNames admin={admin} invenioName={l.invenioName} realName={l.realName} /><span className="small">{l.area}</span></span>
                       </Link>
                     </td>
                     <td style={{ textAlign: "right" }}>{l.priceOnRequest ? "On request" : eur(l.askingPrice)}</td>
@@ -84,7 +87,7 @@ export default async function ForSale({ searchParams }: { searchParams: Promise<
               <tbody>
                 {sheet.data.map((r) => (
                   <tr key={r.uuid}>
-                    <td><b style={{ fontWeight: 500 }}>V-{r.uuid.replace(/-/g, "").slice(0, 6)}</b></td>
+                    <td><b style={{ fontWeight: 500, display: "block" }}>V-{r.uuid.replace(/-/g, "").slice(0, 6)}</b><VillaNames admin={admin} invenioName={r.invenio_name} realName={r.real_name} /></td>
                     <td>{r.area ?? "—"}</td>
                     <td>{r.bedrooms ?? "—"}</td>
                     <td style={{ textAlign: "right" }}>{eur(r.price === null ? null : Number(r.price))}</td>

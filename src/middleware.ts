@@ -20,6 +20,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
   const headers = new Headers(req.headers);
+  headers.delete("x-portal-role"); // the public site never has a portal role
   if (LOCALES.includes(seg)) {
     headers.set("x-lang", seg);
     headers.set("x-path", pathname.slice(seg.length + 1) || "/");
@@ -32,14 +33,25 @@ export function middleware(req: NextRequest) {
   return NextResponse.rewrite(url, { request: { headers } });
 }
 
+/**
+ * Who is looking (Edo, 30 Oct 2026): PORTAL_PASSWORD = admin (sees the villa's Invenio name and real name),
+ * PORTAL_AGENT_PASSWORD (optional, for external sales agents later) = agent (reference codes only).
+ * The role travels to the pages in x-portal-role, always set here so a browser can't send its own.
+ */
 function portal(req: NextRequest) {
   const pass = process.env.PORTAL_PASSWORD;
   if (!pass) return new NextResponse("The sales portal is locked: set PORTAL_PASSWORD on this Vercel project.", { status: 503 });
+  const agentPass = process.env.PORTAL_AGENT_PASSWORD;
   const auth = req.headers.get("authorization") ?? "";
   if (auth.startsWith("Basic ")) {
     const decoded = atob(auth.slice(6));
     const given = decoded.slice(decoded.indexOf(":") + 1);
-    if (given.length === pass.length && given === pass) return NextResponse.next();
+    const role = given === pass ? "admin" : agentPass && given === agentPass ? "agent" : null;
+    if (role) {
+      const headers = new Headers(req.headers);
+      headers.set("x-portal-role", role);
+      return NextResponse.next({ request: { headers } });
+    }
   }
   return new NextResponse("Sign in to the Invenio sales portal.", {
     status: 401,

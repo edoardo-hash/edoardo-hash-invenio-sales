@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { activities, allListings, clause7State, getRequest, sentVillas } from "@/lib/data";
 import { day, eur, matchRequest, mustHaveLabel, REQUEST_SOURCES, REQUEST_STATUSES, requestStatusLabel } from "@/lib/rules";
-import { PageHead, PortalShell, Thumb } from "@/components/portal";
+import { isPortalAdmin, PageHead, PortalShell, Thumb, VillaNames } from "@/components/portal";
 import { DbNotice } from "@/components/site";
 import { addActivity, ownerStep, sendVilla, setRequestStatus, viewingStep } from "@/app/actions";
 
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Portal · Buyer request" };
 export default async function RequestPage({ params }: { params: Params }) {
   const id = Number((await params).id);
   if (!id) notFound();
-  const [req, listings, sent, acts] = await Promise.all([getRequest(id), allListings(), sentVillas({ requestId: id }), activities({ requestId: id })]);
+  const [req, listings, sent, acts, admin] = await Promise.all([getRequest(id), allListings(), sentVillas({ requestId: id }), activities({ requestId: id }), isPortalAdmin()]);
   if (!req.ok) return <PortalShell current="requests"><PageHead title="Buyer request" /><DbNotice reason={req.reason} message={req.message} /></PortalShell>;
   const r = req.data;
   if (!r) notFound();
@@ -85,6 +85,7 @@ export default async function RequestPage({ params }: { params: Params }) {
                       <Thumb src={l.photos[0]} />
                       <div>
                         <Link href={`/portal/listings/${encodeURIComponent(l.ref)}`}><b style={{ fontWeight: 500 }}>{l.ref} · {l.area}</b></Link>
+                        <VillaNames admin={admin} invenioName={l.invenioName} realName={l.realName} />
                         <p className="small">{c7.owner === "confirmed" ? `Owner confirmed${c7.ownerAct ? ` ${day(c7.ownerAct.happenedOn)}` : ""}` : c7.owner === "asked" ? `Name and ID sent to the owner${c7.ownerAct ? ` ${day(c7.ownerAct.happenedOn)}` : ""}` : "Buyer not registered with the owner yet"}</p>
                         {c7.viewing ? <p className="small">Viewing: {c7.viewing.text} · {c7.viewing.confirmed ? "confirmed by the owner" : "waiting for the owner"}</p> : null}
                       </div>
@@ -130,7 +131,7 @@ export default async function RequestPage({ params }: { params: Params }) {
                   <div key={l.uuid} className="item">
                     <div className="inline" style={{ gap: 14, flexWrap: "nowrap" }}>
                       <Thumb src={l.photos[0]} />
-                      <div><Link href={`/portal/listings/${encodeURIComponent(l.ref)}`}><b style={{ fontWeight: 500 }}>{l.ref} · {l.priceOnRequest ? "On request" : eur(l.askingPrice)}</b></Link><p className="small">{l.area} · {l.legalBedrooms ?? l.bedrooms} bed · {reasons.join(", ")}</p></div>
+                      <div><Link href={`/portal/listings/${encodeURIComponent(l.ref)}`}><b style={{ fontWeight: 500 }}>{l.ref} · {l.priceOnRequest ? "On request" : eur(l.askingPrice)}</b></Link><VillaNames admin={admin} invenioName={l.invenioName} realName={l.realName} /><p className="small">{l.area} · {l.legalBedrooms ?? l.bedrooms} bed · {reasons.join(", ")}</p></div>
                     </div>
                     <div className="inline">
                       {l.status === "under_offer" ? <span className="st acc">Under offer</span> : null}
