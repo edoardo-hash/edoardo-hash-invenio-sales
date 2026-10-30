@@ -21,22 +21,19 @@ export function VillaNames({ admin, invenioName, realName, block = true }: { adm
 export function PortalShell({ current, children }: { current: "sale" | "requests"; children: React.ReactNode }) {
   return (
     <div className="pt">
+      {/* Design "The vein" (31 Oct 2026): green sidebar, wordmark, two groups of links. */}
       <aside className="pt-side">
-        <Link href="/" aria-label="Invenio Homes sales website">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/invenio-logo.svg" alt="Invenio Homes" />
-        </Link>
-        <nav aria-label="Portal">
-          <p className="h">Sales</p>
+        <Link href="/portal" className="pt-mark">Invenio <span>sales</span></Link>
+        <nav aria-label="Sales portal" className="pt-group">
           <Link className="nav" href="/portal" aria-current={current === "sale" ? "page" : undefined}>For sale</Link>
           <Link className="nav" href="/portal/requests" aria-current={current === "requests" ? "page" : undefined}>Buyer requests</Link>
-          <p className="h">Website</p>
-          <Link className="nav" href="/">Sales website</Link>
+        </nav>
+        <nav aria-label="Public website" className="pt-group">
+          <span className="h">Public website</span>
+          <Link className="nav" href="/">View website</Link>
           <Link className="nav" href="/properties">Properties for sale</Link>
         </nav>
-        <p style={{ marginTop: "auto", padding: "22px 14px 0", borderTop: "1px solid rgba(244,243,238,.16)", fontSize: 12, color: "rgba(244,243,238,.66)", lineHeight: 1.5 }}>
-          Prototype on the portal&apos;s dev/test database. Changes here show in the portal CRM.
-        </p>
+        <p className="pt-foot">Prototype on the portal&apos;s dev/test database. Changes here show in the portal CRM.</p>
       </aside>
       <main className="pt-main"><div className="pt-in">{children}</div></main>
     </div>
@@ -46,8 +43,8 @@ export function PortalShell({ current, children }: { current: "sale" | "requests
 export function PageHead({ eyebrow = "Sales", title, intro, actions }: { eyebrow?: string; title: React.ReactNode; intro?: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="inline" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: 16 }}>
-      <div className="stack" style={{ gap: 8 }}>
-        <p className="eb">{eyebrow}</p>
+      <div className="stack" style={{ gap: 6, maxWidth: 640 }}>
+        {eyebrow ? <p className="eb">{eyebrow}</p> : null}
         <h1 className="pt-title">{title}</h1>
         {intro ? <p className="meta" style={{ fontSize: 15 }}>{intro}</p> : null}
       </div>

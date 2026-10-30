@@ -191,10 +191,10 @@ export async function findByRef(list: Listing[], ref: string) {
 /** Villas the HAM sheet flags for sale with no portal listing yet (to be rechecked). */
 export const sheetOnly = () =>
   load(async () =>
-    q<{ uuid: string; invenio_name: string | null; real_name: string | null; area: string | null; bedrooms: number | null; price: string | null; sales_contact: string | null; action: string | null }>(
+    q<{ uuid: string; invenio_name: string | null; real_name: string | null; area: string | null; bedrooms: number | null; price: string | null; sales_contact: string | null; sales_contact_email: string | null; action: string | null }>(
       `select s.villa_uuid::text as uuid, s.unique_name as invenio_name, s.villa_name as real_name, s.area, s.bedrooms,
               coalesce(s.confirmed_price_eur, s.price_for_portal_eur, s.current_price_eur)::text as price,
-              s.sales_contact, s.action
+              s.sales_contact, s.sales_contact_email, s.action
          from villa_sale_status s left join villa_sale v on v.villa_uuid = s.villa_uuid
         where s.removed_at is null and v.villa_uuid is null
           and coalesce(s.action, '') not like 'Remove%' and coalesce(s.action, '') not like 'Duplicate%'
