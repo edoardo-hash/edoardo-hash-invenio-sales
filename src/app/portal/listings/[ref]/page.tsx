@@ -7,6 +7,7 @@ import { day, eur, isLicensed, OFFER_TOTAL, PUBLISH_KEYS, requestStatusLabel, sa
 import { isPortalAdmin, PageHead, PortalShell, VillaNames } from "@/components/portal";
 import { FEATURE_GROUPS, FEATURES, featureText, GROUP_LABELS, FEATURE_LABELS } from "@/lib/features";
 import { DbNotice } from "@/components/site";
+import { MarketPanel } from "@/components/market";
 
 export const dynamic = "force-dynamic";
 type Params = Promise<{ ref: string }>;
@@ -87,6 +88,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
               ) : null}
             </div>
           </section>
+
+          {admin ? <MarketPanel listing={l} run={sp.market === "1"} sp={sp} /> : null}
 
           <section className="panel" aria-labelledby="dd-h">
             <div className="ph2"><h2 id="dd-h">Due diligence</h2></div>
