@@ -1,6 +1,8 @@
 import "server-only";
 import { hasDb, q } from "./db";
 import { OWNER_ASKED, OWNER_CONFIRMED, PUBLISH_KEYS, VIEWING_CONFIRMED, VIEWING_PROPOSED, type MatchListing } from "./rules";
+import type { FeatureSet } from "./features";
+import road from "@/data/road-km.json";
 
 /** A villa_sale row joined with its villa_snapshot record. Sales always use the reference, never the villa name. */
 export interface Listing extends MatchListing {
@@ -26,6 +28,28 @@ export interface Listing extends MatchListing {
   notes: string | null;
   approvedBy: string | null;
   updatedAt: string | null;
+  /** Sale features (portal migration 072): yes = present. */
+  saleFeatures: FeatureSet;
+  /** Road km (OSRM, as the portal's area data), never minutes. */
+  road: RoadKm | null;
+}
+
+export interface RoadKm {
+  beach: { name: string | null; km: number } | null;
+  village: { name: string | null; km: number } | null;
+  town: number | null;
+  airport: number | null;
+}
+const ROAD = (road as unknown as { villas: Record<string, { beach: [string | null, number] | null; village: [string | null, number] | null; town: number | null; airport: number | null }> }).villas;
+export function roadKm(uuid: string): RoadKm | null {
+  const r = ROAD[uuid.toLowerCase()];
+  if (!r) return null;
+  return {
+    beach: r.beach ? { name: r.beach[0], km: r.beach[1] } : null,
+    village: r.village ? { name: r.village[0], km: r.village[1] } : null,
+    town: r.town,
+    airport: r.airport,
+  };
 }
 
 interface Row {
@@ -71,9 +95,6 @@ function toListing(r: Row): Listing {
     bedrooms: Number(v.bedrooms ?? 0),
     bathrooms: Number(v.bathrooms ?? 0),
     licence: str(v.licence),
-    features: Array.isArray(v.features) ? (v.features as unknown[]).filter((f): f is string => typeof f === "string") : [],
-    tagline: str(v.tagline),
-    description: str(v.description),
     photos: Array.isArray(v.photos) ? (v.photos as unknown[]).filter((p): p is string => typeof p === "string") : [],
     status: r.status,
     askingPrice: num(r.price),
@@ -97,7 +118,25 @@ function toListing(r: Row): Listing {
     notes: r.notes,
     approvedBy: r.approved_by,
     updatedAt: r.updated_at,
+    saleFeatures: new Map(),
+    road: roadKm(uuid),
   };
+}
+
+/** Fills each listing's features from villa_sale_feature (empty when the portal migration isn't there yet). */
+async function withFeatures(list: Listing[]): Promise<Listing[]> {
+  if (!list.length) return list;
+  try {
+    const rows = await q<{ uuid: string; item_key: string; detail: string | null }>(
+      "select villa_uuid::text as uuid, item_key, detail from villa_sale_feature where villa_uuid = any($1::uuid[])",
+      [list.map((l) => l.uuid)],
+    );
+    const by = new Map(list.map((l) => [l.uuid, l]));
+    for (const r of rows) by.get(r.uuid.toLowerCase())?.saleFeatures.set(r.item_key, r.detail);
+  } catch {
+    // no features table yet
+  }
+  return list;
 }
 
 const LISTING_SQL = `
@@ -121,7 +160,7 @@ async function load<T>(fn: () => Promise<T>): Promise<Loaded<T>> {
 }
 
 /** Every listing with the "for sale" switch on (portal view). */
-export const allListings = () => load(async () => (await q<Row>(`${LISTING_SQL} order by vs.updated_at desc`)).map(toListing));
+export const allListings = () => load(async () => withFeatures((await q<Row>(`${LISTING_SQL} order by vs.updated_at desc`)).map(toListing)));
 
 /**
  * The public site: approved or under offer, not off-market, Invenio Homes brand only
@@ -129,9 +168,11 @@ export const allListings = () => load(async () => (await q<Row>(`${LISTING_SQL} 
  */
 export const publicListings = () =>
   load(async () =>
-    (await q<Row>(`${LISTING_SQL} and vs.status in ('approved', 'under_offer') and not vs.off_market order by vs.asking_price_eur nulls last`))
-      .map(toListing)
-      .filter((l) => l.brand === "IH"),
+    withFeatures(
+      (await q<Row>(`${LISTING_SQL} and vs.status in ('approved', 'under_offer') and not vs.off_market order by vs.asking_price_eur nulls last`))
+        .map(toListing)
+        .filter((l) => l.brand === "IH"),
+    ),
   );
 
 export async function findByRef(list: Listing[], ref: string) {

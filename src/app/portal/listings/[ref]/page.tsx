@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { activities, allListings, clause7State, docProgress, findByRef, listRequests, sentVillas } from "@/lib/data";
 import { day, eur, isLicensed, OFFER_TOTAL, PUBLISH_KEYS, requestStatusLabel, saleStatus } from "@/lib/rules";
 import { PageHead, PortalShell } from "@/components/portal";
+import { FEATURE_GROUPS, FEATURES, featureText, GROUP_LABELS, FEATURE_LABELS } from "@/lib/features";
 import { DbNotice } from "@/components/site";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,26 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
               <div className="kv"><span>Tourist licence</span><span>{isLicensed(l.licence) ? `${l.licence}${l.licenceTransferable ? " · transferable" : ""}` : "None"}</span></div>
               <div className="kv"><span>Exposure</span><span>{[l.offMarket && "Off-market", l.websiteOnly && "Website only", l.rentableWhileOnSale && "Rentable while on sale"].filter(Boolean).join(" · ") || "Website and portals"}</span></div>
               {l.notes ? <div className="kv"><span>Staff notes</span><span style={{ textAlign: "right", maxWidth: "60ch" }}>{l.notes}</span></div> : null}
+            </div>
+          </section>
+
+          <section className="panel" aria-labelledby="ft-h">
+            <div className="ph2"><h2 id="ft-h">Features</h2><span className="small">{l.saleFeatures.size ? `${l.saleFeatures.size} ticked · edited on the Sale tab` : "None yet · the HAM or sales fill them on the Sale tab"}</span></div>
+            <div className="pb">
+              {FEATURE_GROUPS.map((g) => {
+                const items = FEATURES.filter((f) => f.group === g && l.saleFeatures.has(f.key));
+                return items.length ? (
+                  <div key={g} className="kv"><span>{GROUP_LABELS[g]}</span><span style={{ textAlign: "right", maxWidth: "60ch" }}>{items.map((f) => featureText(FEATURE_LABELS, f.key, l.saleFeatures.get(f.key) ?? null)).join(" · ")}</span></div>
+                ) : null;
+              })}
+              {l.road ? (
+                <div className="kv"><span>By road</span><span>{[
+                  l.road.beach && `${l.road.beach.name ?? "beach"} ${l.road.beach.km} km`,
+                  l.road.village && `${l.road.village.name ?? "village"} ${l.road.village.km} km`,
+                  l.road.town !== null && `Ibiza Town ${l.road.town} km`,
+                  l.road.airport !== null && `airport ${l.road.airport} km`,
+                ].filter(Boolean).join(" · ")}</span></div>
+              ) : null}
             </div>
           </section>
 

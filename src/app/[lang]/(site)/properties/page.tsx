@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { publicListings } from "@/lib/data";
-import { isLicensed, MUST_HAVES } from "@/lib/rules";
+import { MUST_HAVES } from "@/lib/rules";
 import { fmt, href, isLang, type Lang } from "@/lib/i18n";
-import type { Dict } from "@/lib/i18n/en";
 import { getDict } from "@/lib/i18n/translate";
 import { DbNotice, ListingCard, SiteFooter, SiteHeader } from "@/components/site";
 import { BriefForm } from "@/components/brief-form";
+import { MustHaveChips } from "@/components/must-haves";
 
 export const dynamic = "force-dynamic";
 
@@ -29,16 +29,14 @@ export default async function Properties({ params, searchParams }: { params: Par
   const area = one(sp.area);
   const [lo, hi] = one(sp.price).split("-").map((x) => (x ? Number(x) * 1e6 : null));
   const beds = Number(one(sp.beds)) || 0;
-  const licence = one(sp.licence) === "1";
-  const must = MUST_HAVES.filter((m) => m.key !== "licence" && one(sp[`m_${m.key}`]) === "on");
+  // ?licence=1 is the home page's "licensed villas" link.
+  const must = MUST_HAVES.filter((m) => one(sp[`m_${m.key}`]) === "on" || (m.key === "licence" && one(sp.licence) === "1"));
   const sort = one(sp.sort) || "price";
-  const mh = (k: string) => t.mustHave[k as keyof Dict["mustHave"]] ?? k;
 
   let list = all.filter(
     (l) =>
       (!area || l.area === area) &&
       (!beds || (l.legalBedrooms ?? l.bedrooms) >= beds) &&
-      (!licence || isLicensed(l.licence)) &&
       (lo === null || lo === undefined || (l.askingPrice ?? Infinity) >= lo) &&
       (hi === null || hi === undefined || (l.askingPrice ?? 0) <= hi) &&
       must.every((m) => m.match(l)),
@@ -88,13 +86,7 @@ export default async function Properties({ params, searchParams }: { params: Par
                 </select>
               </div>
             </div>
-            <fieldset className="chips">
-              <legend className="lab" style={{ marginBottom: 10 }}>{t.list.mustHaves}</legend>
-              <label className="chip"><input type="checkbox" name="licence" value="1" defaultChecked={licence} /> {mh("licence")}</label>
-              {MUST_HAVES.filter((m) => m.key !== "licence").map((m) => (
-                <label key={m.key} className="chip"><input type="checkbox" name={`m_${m.key}`} defaultChecked={must.includes(m)} /> {mh(m.key)}</label>
-              ))}
-            </fieldset>
+            <MustHaveChips t={t} legend={t.list.mustHaves} selected={must.map((m) => m.key)} />
             <div className="inline"><button className="btn solid" type="submit">{t.list.show}</button><Link className="lnk" href={href(lang, "/properties")}>{t.list.clear}</Link></div>
           </form>
         </section>

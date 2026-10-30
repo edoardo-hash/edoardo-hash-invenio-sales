@@ -215,3 +215,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .empty { color: var(--muted); padding: 14px 2px; border: 1px dashed var(--hair); text-align: center; font-size: 13px; }
 .notice { padding: 16px 20px; border-radius: 2px; background: #F3E7D3; color: #5c4011; font-size: 14px; line-height: 1.6; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Grouped must-have / feature chips */
+.more-features summary { cursor: pointer; list-style: none; font-size: 14px; color: var(--accent); min-height: 44px; display: inline-flex; align-items: center; }
+.more-features summary::-webkit-details-marker { display: none; }
+.more-features summary::after { content: " +"; }
+.more-features[open] summary::after { content: " –"; }
+.feat-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 28px 40px; }
+.feat-groups ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; font-size: 15px; }
+.feat-groups li::before { content: "✓"; color: var(--accent); margin-right: 8px; }
+.dist { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0; border-top: 1px solid var(--hair); }
+.dist div { padding: 18px 0; border-bottom: 1px solid var(--hair); }
+.dist .v { font-size: 22px; font-weight: 300; }

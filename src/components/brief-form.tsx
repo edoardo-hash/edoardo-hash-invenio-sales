@@ -1,5 +1,5 @@
 import { submitBrief } from "@/app/actions";
-import { MUST_HAVES } from "@/lib/rules";
+import { MustHaveChips } from "./must-haves";
 import type { Dict } from "@/lib/i18n/en";
 import type { Lang } from "@/lib/i18n";
 
@@ -24,12 +24,7 @@ export function BriefForm({ t, lang, error }: { t: Dict; lang: Lang; error?: boo
           <select id="b-beds" name="beds" defaultValue=""><option value="">{t.search.any}</option><option>4</option><option>5</option><option>6</option><option value="7">7+</option></select>
         </div>
       </div>
-      <fieldset className="chips">
-        <legend className="lab" style={{ marginBottom: 10 }}>{t.list.mustHaves}</legend>
-        {MUST_HAVES.map((m) => (
-          <label key={m.key} className="chip"><input type="checkbox" name={`m_${m.key}`} /> {t.mustHave[m.key as keyof Dict["mustHave"]] ?? m.label}</label>
-        ))}
-      </fieldset>
+      <MustHaveChips t={t} legend={t.list.mustHaves} />
       <div className="field"><label htmlFor="b-msg">{t.brief.anythingElse}</label><textarea id="b-msg" name="message" /></div>
       <div className="inline" style={{ justifyContent: "space-between", gap: 16 }}>
         <p className="small" style={{ maxWidth: "44ch" }}>{t.brief.privacy}</p>

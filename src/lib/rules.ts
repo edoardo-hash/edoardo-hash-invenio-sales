@@ -4,6 +4,8 @@
 export type SaleStatus = "draft" | "review" | "approved" | "under_offer" | "sold" | "withdrawn";
 export type Tone = "neu" | "warn" | "ok" | "acc" | "bad";
 
+import { FEATURE_GROUPS, FEATURE_LABELS, FEATURES, type FeatureGroup, type FeatureSet } from "./features";
+
 export const SALE_STATUSES: { key: SaleStatus; label: string; tone: Tone }[] = [
   { key: "draft", label: "Draft", tone: "neu" },
   { key: "review", label: "Waiting for approval", tone: "warn" },
@@ -43,27 +45,33 @@ export interface MatchFields {
   district: string;
   bedrooms: number;
   licence: string | null;
-  features: string[];
-  tagline: string | null;
-  description: string | null;
   plotM2: number | null;
+  /** Sale features from the portal (yes = present). */
+  saleFeatures: FeatureSet;
 }
 
-const has = (v: MatchFields, re: RegExp) => v.features.some((f) => re.test(f)) || re.test(v.tagline ?? "") || re.test(v.description ?? "");
 export const isLicensed = (licence: string | null) => !!licence && licence.length >= 4;
 
-export const MUST_HAVES: { key: string; label: string; match: (v: MatchFields) => boolean }[] = [
-  { key: "sea_view", label: "Sea view", match: (v) => has(v, /sea.?view|vista.*mar/i) },
-  { key: "sunset", label: "Sunset view", match: (v) => has(v, /sunset/i) },
-  { key: "licence", label: "Tourist licence", match: (v) => isLicensed(v.licence) },
-  { key: "finca", label: "Finca style", match: (v) => has(v, /finca|rustic|traditional/i) },
-  { key: "modern", label: "Modern", match: (v) => has(v, /modern|contemporary|design/i) },
-  { key: "pool", label: "Pool", match: (v) => has(v, /pool/i) },
-  { key: "walk_beach", label: "Walk to the beach", match: (v) => has(v, /walk.*beach|beach.*walk|beachfront|first line/i) },
-  { key: "privacy", label: "Privacy", match: (v) => has(v, /privat|secluded|gated/i) },
-  { key: "land", label: "Big plot or land", match: (v) => (v.plotM2 ?? 0) >= 5000 || has(v, /large plot|big plot|land/i) },
+/**
+ * What a buyer can ask for: the tourist licence (from the licence field, never a feature), a big plot, and every item of
+ * the sale features catalog (same as the portal's MUST_HAVES). A listing without one ranks lower, never drops out.
+ */
+export type MustHaveGroup = FeatureGroup | "licence_land";
+export const MUST_HAVES: { key: string; group: MustHaveGroup; match: (v: MatchFields) => boolean }[] = [
+  { key: "licence", group: "licence_land", match: (v) => isLicensed(v.licence) },
+  { key: "land", group: "licence_land", match: (v) => (v.plotM2 ?? 0) >= 5000 },
+  ...FEATURES.map((f) => ({ key: f.key, group: f.group as MustHaveGroup, match: (v: MatchFields) => v.saleFeatures.has(f.key) })),
 ];
-export const mustHaveLabel = (k: string) => MUST_HAVES.find((m) => m.key === k)?.label ?? k;
+/** Must-haves saved by the old version of the brief, still read on older requests. */
+const LEGACY: Record<string, { label: string; match: (v: MatchFields) => boolean }> = {
+  privacy: { label: "Privacy", match: (v) => v.saleFeatures.has("gated") || v.saleFeatures.has("fenced") },
+};
+export const MUST_HAVE_LABELS: Record<string, string> = { licence: "Tourist licence", land: "Big plot or land", ...FEATURE_LABELS };
+export const mustHaveLabel = (k: string) => MUST_HAVE_LABELS[k] ?? LEGACY[k]?.label ?? k;
+const mustHaveMatch = (k: string, v: MatchFields) => (MUST_HAVES.find((m) => m.key === k)?.match ?? LEGACY[k]?.match)?.(v) ?? false;
+/** The few shown first on the public filters and the brief; the rest sit under their group. */
+export const POPULAR_MUST_HAVES = ["licence", "sea_view", "sunset", "pool", "walk_beach", "modern", "finca", "land"];
+export const MUST_HAVE_GROUPS: MustHaveGroup[] = ["licence_land", ...FEATURE_GROUPS];
 
 /** The due-diligence items David needs before approving ("publish" gate); the "offer" gate has 25 more. */
 export const PUBLISH_KEYS = [
@@ -119,7 +127,7 @@ export function matchRequest<T extends MatchListing>(r: MatchBrief, listings: T[
       else if (r.areas.includes(v.district)) { score += 2; reasons.push(`in ${v.district}`); }
       else { score -= 1; reasons.push("outside their areas"); }
     }
-    const hits = r.mustHaves.filter((k) => MUST_HAVES.find((m) => m.key === k)?.match(v));
+    const hits = r.mustHaves.filter((k) => mustHaveMatch(k, v));
     score += hits.length * 1.5 - (r.mustHaves.length - hits.length) * 0.5;
     if (hits.length) reasons.push(`has ${hits.map(mustHaveLabel).join(", ").toLowerCase()}`);
     out.push({ listing: v, score, reasons, live: v.status === "approved" || v.status === "under_offer" });

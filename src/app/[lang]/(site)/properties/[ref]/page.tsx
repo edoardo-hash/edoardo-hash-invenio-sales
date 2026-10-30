@@ -5,6 +5,7 @@ import { findByRef, publicListings } from "@/lib/data";
 import { eur, isLicensed, matchRequest } from "@/lib/rules";
 import { fmt, href, isLang, type Lang } from "@/lib/i18n";
 import { getDict, translateText } from "@/lib/i18n/translate";
+import { FEATURE_GROUPS, FEATURES, featureText } from "@/lib/features";
 import { DbNotice, ListingCard, listingTitle, SiteFooter, SiteHeader } from "@/components/site";
 import { submitEnquiry } from "@/app/actions";
 
@@ -53,6 +54,20 @@ export default async function Property({ params, searchParams }: { params: Param
   const licensed = isLicensed(l.licence);
   const title = listingTitle(t, l);
   const status = l.status === "under_offer" ? P.underOffer : P.forSale;
+  // Yes only: a buyer sees what the home has, never a list of "no".
+  const featureGroups = FEATURE_GROUPS.map((g) => ({
+    g,
+    items: FEATURES.filter((f) => f.group === g && l.saleFeatures.has(f.key)).map((f) => featureText(t.mustHave, f.key, l.saleFeatures.get(f.key) ?? null)),
+  })).filter((x) => x.items.length);
+  const km = (n: number | null | undefined) => (n === null || n === undefined ? null : fmt(P.km, { n: n < 10 ? n.toFixed(1) : Math.round(n) }));
+  const distances = l.road
+    ? ([
+        [P.distBeach, l.road.beach?.name ?? null, km(l.road.beach?.km)],
+        [P.distVillage, l.road.village?.name ?? null, km(l.road.village?.km)],
+        [P.distTown, null, km(l.road.town)],
+        [P.distAirport, null, km(l.road.airport)],
+      ] as [string, string | null, string | null][]).filter((d) => d[2])
+    : [];
   const facts: [string | number, string][] = [
     [l.legalBedrooms ?? l.bedrooms, P.bedrooms],
     [l.bathrooms, P.bathrooms],
@@ -94,6 +109,21 @@ export default async function Property({ params, searchParams }: { params: Param
                 )}
               </div>
 
+              {featureGroups.length ? (
+                <div className="vsec">
+                  <h2>{P.featuresTitle}</h2>
+                  <p className="lead" style={{ fontSize: 15 }}>{P.featuresLead}</p>
+                  <div className="feat-groups">
+                    {featureGroups.map(({ g, items }) => (
+                      <div key={g}>
+                        <p className="lab">{t.featureGroups[g]}</p>
+                        <ul>{items.map((x) => <li key={x}>{x}</li>)}</ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="vsec">
                 <h2>{P.checkedTitle}</h2>
                 <p className="lead" style={{ fontSize: 15 }}>{P.checkedLead}</p>
@@ -120,6 +150,16 @@ export default async function Property({ params, searchParams }: { params: Param
 
               <div className="vsec">
                 <h2>{P.location}</h2>
+                {distances.length ? (
+                  <div className="stack" style={{ gap: 8 }}>
+                    <p className="lab">{P.distancesTitle}</p>
+                    <div className="dist">
+                      {distances.map(([k, name, v]) => (
+                        <div key={k}><p className="small">{k}{name ? ` · ${name}` : ""}</p><p className="v">{v}</p></div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="areamap">
                   <svg viewBox="0 0 800 350" preserveAspectRatio="xMidYMid slice" role="img" aria-label={`${l.area}, Ibiza`}>
                     <path d="M0 230 C110 205 160 150 250 160 C330 168 370 120 460 128 C550 136 600 98 690 106 C740 112 780 88 800 80 L800 350 L0 350Z" fill="#F4F3EE" stroke="#DEDCD3" />

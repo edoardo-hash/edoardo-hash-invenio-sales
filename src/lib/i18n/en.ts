@@ -2,6 +2,8 @@
  * Every client-facing string, in English. Spanish, Italian and Dutch are produced from this by the low-cost text
  * model (DeepSeek through the Vercel AI Gateway, see ./translate.ts) and cached. {name} marks a value filled in at render.
  */
+import { FEATURE_LABELS, GROUP_LABELS } from "../features";
+
 export const EN = {
   nav: {
     properties: "Properties for sale",
@@ -126,16 +128,18 @@ export const EN = {
     privacy: "We use your details only to find you a home.",
     send: "Send my brief",
   },
+  /** Must-have and feature labels: the licence, a big plot and the sale features catalog (src/lib/features.ts). */
   mustHave: {
-    sea_view: "Sea view",
-    sunset: "Sunset view",
     licence: "Tourist licence",
-    finca: "Finca style",
-    modern: "Modern",
-    pool: "Pool",
-    walk_beach: "Walk to the beach",
-    privacy: "Privacy",
     land: "Big plot or land",
+    privacy: "Privacy",
+    ...FEATURE_LABELS,
+  },
+  featureGroups: {
+    licence_land: "Licence and land",
+    ...GROUP_LABELS,
+    more: "More features",
+    selected: "{n} selected",
   },
   property: {
     breadcrumb: "Breadcrumb",
@@ -192,6 +196,14 @@ export const EN = {
     viewing: "Arrange a viewing",
     registerNote: "We register you with the owner before sharing the address and documents.",
     emailDavid: "Email David",
+    featuresTitle: "Features",
+    featuresLead: "What our sales team confirmed for this home.",
+    distancesTitle: "Distances by road",
+    distBeach: "Nearest beach",
+    distVillage: "Nearest village",
+    distTown: "Ibiza Town",
+    distAirport: "Ibiza airport",
+    km: "{n} km",
     alsoLike: "You may also like",
     similar: "Similar homes for sale",
   },
@@ -273,4 +285,5 @@ export const EN = {
 };
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };
-export type Dict = Widen<typeof EN>;
+/** mustHave is indexed by any feature key (the catalog is spread in, which drops the index signature). */
+export type Dict = Omit<Widen<typeof EN>, "mustHave"> & { mustHave: Record<string, string> };
