@@ -4,14 +4,23 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ACTOR, hasDb, q } from "@/lib/db";
 import { isRequestStatus, MUST_HAVES, OWNER_ASKED, OWNER_CONFIRMED, VIEWING_CONFIRMED, VIEWING_PROPOSED } from "@/lib/rules";
+import { href, isLang, type Lang } from "@/lib/i18n";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+/** The page the visitor came from was in this language: send them back in it. */
+const loc = (f: FormData, path: string) => href(isLang(s(f, "lang")) ? (s(f, "lang") as Lang) : "en", path);
 const money = (v: string) => {
   const n = Number(v.replace(/[^\d.]/g, ""));
   if (!n) return null;
   return n < 1000 ? n * 1e6 : n; // "3.5" means €3.5M
 };
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" });
+const LANG_LABEL: Record<string, string> = { es: "Spanish", it: "Italian", nl: "Dutch" };
+/** Staff notes stay in English; the visitor's own words and site language are added as they are. */
+const note = (f: FormData, base: string) => {
+  const lang = LANG_LABEL[s(f, "lang")];
+  return [base, lang ? `Site language: ${lang}.` : "", s(f, "message")].filter(Boolean).join(" ") || null;
+};
 
 async function newContact(kind: "buyer" | "owner", f: FormData, notes: string | null): Promise<number> {
   const rows = await q<{ id: string }>(
@@ -23,8 +32,8 @@ async function newContact(kind: "buyer" | "owner", f: FormData, notes: string | 
 
 /** Website: buyer brief → a buyer contact and a new request, source "website". */
 export async function submitBrief(f: FormData) {
-  if (!s(f, "name") || (!s(f, "email") && !s(f, "phone"))) redirect("/properties?error=brief#brief");
-  if (!hasDb()) redirect("/thanks?offline=1");
+  if (!s(f, "name") || (!s(f, "email") && !s(f, "phone"))) redirect(`${loc(f, "/properties")}?error=brief#brief`);
+  if (!hasDb()) redirect(`${loc(f, "/thanks")}?offline=1`);
   const contactId = await newContact("buyer", f, null);
   const areas = s(f, "areas").split(",").map((a) => a.trim()).filter(Boolean);
   const must = MUST_HAVES.map((m) => m.key).filter((k) => f.get(`m_${k}`) === "on");
@@ -32,38 +41,38 @@ export async function submitBrief(f: FormData) {
   await q(
     `insert into sale_request (contact_id, budget_min_eur, budget_max_eur, areas, min_bedrooms, must_haves, licence_needed, timing, source, notes, created_by)
      values ($1, $2, $3, $4, $5, $6, $7, $8, 'website', $9, $10)`,
-    [contactId, money(s(f, "min")), money(s(f, "max")), areas, beds, must, must.includes("licence"), s(f, "timing") || null, s(f, "message") || null, ACTOR.email],
+    [contactId, money(s(f, "min")), money(s(f, "max")), areas, beds, must, must.includes("licence"), s(f, "timing") || null, note(f, s(f, "message")), ACTOR.email],
   );
-  redirect("/thanks?kind=brief");
+  redirect(`${loc(f, "/thanks")}?kind=brief`);
 }
 
 /** Website: "Request details" / "Arrange a viewing" on a property → buyer, request and a note on the villa. */
 export async function submitEnquiry(f: FormData) {
   const ref = s(f, "ref");
   const uuid = s(f, "uuid");
-  if (!s(f, "name") || (!s(f, "email") && !s(f, "phone"))) redirect(`/properties/${encodeURIComponent(ref)}?error=1#enquire`);
-  if (!hasDb()) redirect("/thanks?offline=1");
+  if (!s(f, "name") || (!s(f, "email") && !s(f, "phone"))) redirect(`${loc(f, `/properties/${encodeURIComponent(ref)}`)}?error=1#enquire`);
+  if (!hasDb()) redirect(`${loc(f, "/thanks")}?offline=1`);
   const contactId = await newContact("buyer", f, null);
   const what = s(f, "what") === "viewing" ? "Would like a viewing" : "Asked for details";
   const req = await q<{ id: string }>(
     `insert into sale_request (contact_id, source, notes, created_by) values ($1, 'website', $2, $3) returning id::text`,
-    [contactId, `${what} of ${ref}. ${s(f, "message")}`.trim(), ACTOR.email],
+    [contactId, note(f, `${what} of ${ref}.`), ACTOR.email],
   );
   await q(
     `insert into sale_activity (request_id, villa_uuid, contact_id, kind, body, happened_on, author_email, author_name)
      values ($1, $2::uuid, $3, 'note', $4, $5, $6, $7)`,
     [Number(req[0].id), uuid, contactId, `Website enquiry: ${what.toLowerCase()} of ${ref}`, today(), ACTOR.email, ACTOR.name],
   );
-  redirect("/thanks?kind=enquiry");
+  redirect(`${loc(f, "/thanks")}?kind=enquiry`);
 }
 
 /** Website: owner valuation request → an owner contact with the details in its notes. */
 export async function submitValuation(f: FormData) {
-  if (!s(f, "name") || (!s(f, "email") && !s(f, "phone"))) redirect("/sell?error=1#valuation");
-  if (!hasDb()) redirect("/thanks?offline=1");
-  const notes = `Valuation request from the website. Area: ${s(f, "area") || "?"}. Bedrooms: ${s(f, "beds") || "?"}. Rented with Invenio: ${s(f, "rented") || "?"}. ${s(f, "message")}`.trim();
-  await newContact("owner", f, notes);
-  redirect("/thanks?kind=valuation");
+  if (!s(f, "name") || (!s(f, "email") && !s(f, "phone"))) redirect(`${loc(f, "/sell")}?error=1#valuation`);
+  if (!hasDb()) redirect(`${loc(f, "/thanks")}?offline=1`);
+  const notes = `Valuation request from the website. Area: ${s(f, "area") || "?"}. Bedrooms: ${s(f, "beds") || "?"}. Rented with Invenio: ${s(f, "rented") === "no" ? "No" : "Yes"}.`;
+  await newContact("owner", f, note(f, notes));
+  redirect(`${loc(f, "/thanks")}?kind=valuation`);
 }
 
 // ---- portal ----------------------------------------------------------------------------------------------------

@@ -1,32 +1,40 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import type { Listing } from "@/lib/data";
+import type { Dict } from "@/lib/i18n/en";
+import { fmt, href, LANG_NAMES, LANGS, type Lang } from "@/lib/i18n";
 import { eur } from "@/lib/rules";
 
-export function SiteHeader({ current }: { current?: "properties" | "sell" }) {
+export async function SiteHeader({ t, lang, current }: { t: Dict; lang: Lang; current?: "properties" | "sell" }) {
+  const path = (await headers()).get("x-path") || "/";
   return (
     <header className="site-head">
       <div className="wrap">
-        <Link className="brand" href="/" aria-label="Invenio Homes sales home">
+        <Link className="brand" href={href(lang, "/")} aria-label={t.nav.homeAria}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/invenio-logo.svg" alt="Invenio Homes" />
-          <span>Sales</span>
+          <span>{t.nav.sales}</span>
         </Link>
         <nav className="site-nav" aria-label="Main">
-          <Link href="/properties" aria-current={current === "properties" ? "page" : undefined}>Properties for sale</Link>
-          <Link href="/sell" aria-current={current === "sell" ? "page" : undefined}>Sell with us</Link>
-          <a href="https://inveniohomes.com">Rentals</a>
-          <Link href="/#about">About us</Link>
+          <Link href={href(lang, "/properties")} aria-current={current === "properties" ? "page" : undefined}>{t.nav.properties}</Link>
+          <Link href={href(lang, "/sell")} aria-current={current === "sell" ? "page" : undefined}>{t.nav.sell}</Link>
+          <a href="https://inveniohomes.com">{t.nav.rentals}</a>
+          <Link href={`${href(lang, "/")}#about`}>{t.nav.about}</Link>
         </nav>
         <div className="head-cta">
-          <Link className="signin" href="/portal">Agent sign in</Link>
-          <Link className="btn solid" href="/properties#brief">Send your brief</Link>
+          <nav aria-label={t.nav.language} className="langs">
+            {LANGS.map((l) => (
+              <a key={l} href={href(l, path)} hrefLang={l} lang={l} aria-current={l === lang ? "true" : undefined} title={LANG_NAMES[l]}>{l.toUpperCase()}</a>
+            ))}
+          </nav>
+          <Link className="btn solid" href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</Link>
         </div>
       </div>
     </header>
   );
 }
 
-export function SiteFooter() {
+export function SiteFooter({ t, lang }: { t: Dict; lang: Lang }) {
   return (
     <footer className="site-foot">
       <div className="wrap">
@@ -34,12 +42,12 @@ export function SiteFooter() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/invenio-logo.svg" alt="Invenio Homes" />
           <div className="foot-cols">
-            <div><b>Sales</b><Link href="/properties">Properties for sale</Link><Link href="/sell">Sell with us</Link><Link href="/properties#brief">Send your brief</Link></div>
-            <div><b>Invenio Homes</b><a href="https://inveniohomes.com">Villa rentals</a><Link href="/portal">Agent sign in</Link></div>
-            <div><b>Contact</b><a href="mailto:david@inveniohomes.com">david@inveniohomes.com</a><a href="https://wa.me/34671349592">+34 671 349 592</a><span>Ibiza · Formentera</span></div>
+            <div><b>{t.footer.sales}</b><Link href={href(lang, "/properties")}>{t.nav.properties}</Link><Link href={href(lang, "/sell")}>{t.nav.sell}</Link><Link href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}</Link></div>
+            <div><b>{t.footer.company}</b><a href="https://inveniohomes.com">{t.footer.villaRentals}</a><Link href="/portal">{t.nav.agentSignIn}</Link></div>
+            <div><b>{t.footer.contact}</b><a href="mailto:david@inveniohomes.com">david@inveniohomes.com</a><a href="https://wa.me/34671349592">+34 671 349 592</a><span>Ibiza · Formentera</span></div>
           </div>
         </div>
-        <div className="foot-bottom"><span>© 2026 Invenio Homes SL · Balearic agents register GOIBE766172/2024</span><span>Privacy · Terms · Cookies</span></div>
+        <div className="foot-bottom"><span>© 2026 Invenio Homes SL · {t.footer.register}</span><span>{t.footer.legal}</span></div>
       </div>
     </footer>
   );
@@ -50,35 +58,35 @@ export const Arrow = () => (
 );
 
 /** Sales cards show the reference and the area, never the villa's name. */
-export const listingTitle = (l: Listing) => `${l.bedrooms ? `${l.bedrooms}-bedroom villa` : "Villa"} in ${l.area}`;
+export const listingTitle = (t: Dict, l: Listing) => (l.bedrooms ? fmt(t.card.titleBeds, { beds: l.bedrooms, area: l.area }) : fmt(t.card.title, { area: l.area }));
 
-export function ListingCard({ l, as: H = "h3" }: { l: Listing; as?: "h2" | "h3" }) {
+export function ListingCard({ t, lang, l, as: H = "h3" }: { t: Dict; lang: Lang; l: Listing; as?: "h2" | "h3" }) {
   const under = l.status === "under_offer";
   return (
     <article className={`card${under ? " dim" : ""}`}>
-      {under ? <span className="badge">Under offer</span> : null}
+      {under ? <span className="badge">{t.card.underOffer}</span> : null}
       <div className="img">
-        {l.photos[0] ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={l.photos[0]} alt={listingTitle(l)} loading="lazy" />
-        ) : null}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {l.photos[0] ? <img src={l.photos[0]} alt={listingTitle(t, l)} loading="lazy" /> : null}
       </div>
       <div className="cb">
-        <p className="meta">Ref. {l.ref} · {l.bedrooms} bedrooms, {l.bathrooms} baths</p>
-        <H className="name">{listingTitle(l)}</H>
-        <p className="price">{l.priceOnRequest || l.askingPrice === null ? "Price on request" : eur(l.askingPrice)}</p>
-        <Link className="lnk" href={`/properties/${encodeURIComponent(l.ref)}`} style={{ marginTop: 10 }}>View property <Arrow /></Link>
+        <p className="meta">{fmt(t.card.meta, { ref: l.ref, beds: l.bedrooms, baths: l.bathrooms })}</p>
+        <H className="name">{listingTitle(t, l)}</H>
+        <p className="price">{l.priceOnRequest || l.askingPrice === null ? t.card.priceOnRequest : eur(l.askingPrice)}</p>
+        <Link className="lnk" href={href(lang, `/properties/${encodeURIComponent(l.ref)}`)} style={{ marginTop: 10 }}>{t.card.view} <Arrow /></Link>
       </div>
     </article>
   );
 }
 
-export function DbNotice({ reason, message }: { reason: "no-db" | "error"; message?: string }) {
+/** Public pages: a plain message (the portal shows the technical one). */
+export function DbNotice({ reason, message, t }: { reason: "no-db" | "error"; message?: string; t?: Dict }) {
+  if (t) return <p className="notice">{reason === "no-db" ? t.db.missing : t.db.error}</p>;
   return (
     <p className="notice">
       {reason === "no-db"
-        ? "The database is not connected to this deployment yet, so listings can't be shown. Connect the portal's Neon database to this Vercel project and redeploy."
-        : `Listings could not be loaded from the database${message ? `: ${message}` : "."}`}
+        ? "The database is not connected to this deployment yet. Connect the portal's Neon database to this Vercel project and redeploy."
+        : `Could not load from the database${message ? `: ${message}` : "."}`}
     </p>
   );
 }
