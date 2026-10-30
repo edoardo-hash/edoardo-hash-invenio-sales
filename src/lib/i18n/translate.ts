@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { EN, type Dict } from "./en";
 import { LANG_ENGLISH, type Lang } from ".";
+import { OVERRIDES } from "./overrides";
 
 /**
  * Translations by the low-cost text model, as in invenio-portal src/lib/ai-text.ts: DeepSeek through the Vercel AI
@@ -131,6 +132,7 @@ export async function getDict(lang: Lang): Promise<Dict> {
     }),
   );
   if (pending.length) after(() => Promise.allSettled(pending));
+  Object.assign(merged, OVERRIDES[lang] ?? {});
   return unflatten(merged, EN) as Dict;
 }
 
