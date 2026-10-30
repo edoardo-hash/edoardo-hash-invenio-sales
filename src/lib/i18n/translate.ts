@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { unstable_cache } from "next/cache";
+import { after } from "next/server";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { EN, type Dict } from "./en";
 import { LANG_ENGLISH, type Lang } from ".";
@@ -72,32 +73,55 @@ function unflatten(flat: Flat, shape: Record<string, unknown>, pre = ""): Record
 const placeholders = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join();
 const json = (text: string) => JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, ""));
 
-const FLAT_EN = flatten(EN);
-const EN_HASH = createHash("sha1").update(JSON.stringify(FLAT_EN)).digest("hex").slice(0, 12);
 
-async function translateDict(lang: Lang, token: string | null): Promise<Flat> {
+/** One section of the dictionary (nav, home, property…): small calls in parallel, each cached on its own. */
+async function translateSection(lang: Lang, section: string, strings: Flat, token: string | null): Promise<Flat> {
   const system =
     `You translate the website of Invenio Homes, a luxury villa sales agency in Ibiza, from English into ${LANG_ENGLISH[lang]}. ` +
     "Write natural, polished copy for wealthy home buyers and owners, formal address (usted / Lei / u). Short UI labels stay short. " +
     `${KEEP} Answer with one JSON object only: the same keys, translated values.`;
-  const out = json(await complete(token, system, JSON.stringify(FLAT_EN), 16_000)) as Flat;
+  const started = Date.now();
+  const out = json(await complete(token, system, JSON.stringify(strings), 6_000)) as Flat;
   // Any value that lost or gained a placeholder falls back to English.
-  for (const [k, v] of Object.entries(FLAT_EN)) if (typeof out[k] !== "string" || placeholders(out[k]) !== placeholders(v)) out[k] = v;
+  for (const [k, v] of Object.entries(strings)) if (typeof out[k] !== "string" || placeholders(out[k]) !== placeholders(v)) out[k] = v;
+  console.log(`translated ${lang}/${section}: ${Object.keys(strings).length} strings in ${Date.now() - started} ms`);
   return out;
 }
 
-/** The page dictionary for a language; English, or English values wherever a translation is missing. */
+const SECTIONS = Object.keys(EN).map((section) => {
+  const strings = flatten((EN as Record<string, Record<string, unknown>>)[section], `${section}.`);
+  return { section, strings, hash: createHash("sha1").update(JSON.stringify(strings)).digest("hex").slice(0, 12) };
+});
+const WAIT_MS = 2_500;
+const sleep = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms));
+
+/**
+ * The page dictionary for a language. Never keeps a visitor waiting more than WAIT_MS: a section not translated
+ * yet is shown in English while its translation finishes in the background (after()), cached for the next visitor.
+ */
 export async function getDict(lang: Lang): Promise<Dict> {
-  if (lang === "en" || coolingDown(`dict:${lang}`)) return EN;
+  if (lang === "en") return EN;
   const token = await gatewayToken();
-  try {
-    const flat = await unstable_cache(() => translateDict(lang, token), ["dict", lang, EN_HASH], { revalidate: false, tags: ["dict"] })();
-    return unflatten(flat, EN) as Dict;
-  } catch (e) {
-    failedAt.set(`dict:${lang}`, Date.now());
-    console.error(`translation ${lang} failed:`, e instanceof Error ? e.message : e);
-    return EN; // nothing cached: tried again after the cooldown
-  }
+  const merged: Flat = {};
+  const pending: Promise<unknown>[] = [];
+  await Promise.all(
+    SECTIONS.map(async ({ section, strings, hash }) => {
+      const key = `dict:${lang}:${section}`;
+      if (coolingDown(key)) return;
+      const job = unstable_cache(() => translateSection(lang, section, strings, token), ["dict", lang, section, hash], { revalidate: false, tags: ["dict"] })().catch(
+        (e) => {
+          failedAt.set(key, Date.now());
+          console.error(`translation ${lang}/${section} failed:`, e instanceof Error ? e.message : e);
+          return null;
+        },
+      );
+      const done = await Promise.race([job, sleep(WAIT_MS)]);
+      if (done) Object.assign(merged, done);
+      else pending.push(job);
+    }),
+  );
+  if (pending.length) after(() => Promise.allSettled(pending));
+  return unflatten(merged, EN) as Dict;
 }
 
 /** A listing's public sale text in the visitor's language (paragraphs kept). */
@@ -106,8 +130,7 @@ export async function translateText(lang: Lang, text: string | null): Promise<st
   const key = createHash("sha1").update(text).digest("hex").slice(0, 16);
   if (coolingDown(`text:${lang}:${key}`)) return text;
   const token = await gatewayToken();
-  try {
-    return await unstable_cache(
+  const job = unstable_cache(
       () =>
         complete(
           token,
@@ -118,9 +141,12 @@ export async function translateText(lang: Lang, text: string | null): Promise<st
         ),
       ["sale-text", lang, key],
       { revalidate: false, tags: ["sale-text"] },
-    )();
-  } catch {
-    failedAt.set(`text:${lang}:${key}`, Date.now());
-    return text;
-  }
+    )().catch(() => {
+      failedAt.set(`text:${lang}:${key}`, Date.now());
+      return null;
+    });
+  const done = await Promise.race([job, sleep(WAIT_MS)]);
+  if (done) return done;
+  after(() => job);
+  return text; // English this time; translated for the next visitor
 }
