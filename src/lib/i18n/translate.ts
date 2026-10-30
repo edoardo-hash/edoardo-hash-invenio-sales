@@ -54,6 +54,16 @@ async function complete(token: string | null, system: string, user: string, maxT
   return text;
 }
 
+/** Formal address everywhere, buttons and labels included (Edo, 30 Oct 2026: the first run mixed tú/usted and tu/Lei). */
+const FORMAL: Record<Lang, string> = {
+  en: "",
+  es: "Always address the reader formally with usted, never tú, including buttons and imperatives (Venda, Envíe, Descubra; never Vende, Envía).",
+  it: "Always address the reader formally with Lei, never tu, including buttons and imperatives (Ci dica, Invii, la Sua registrazione; never Dicci, Invia, la tua).",
+  nl: "Always address the reader formally with u, never je or jij, including buttons and imperatives.",
+};
+/** Bump when the instructions change, so every language is translated again. */
+const PROMPT_VERSION = "2";
+
 type Flat = Record<string, string>;
 function flatten(o: Record<string, unknown>, pre = ""): Flat {
   const out: Flat = {};
@@ -78,7 +88,7 @@ const json = (text: string) => JSON.parse(text.replace(/^```(?:json)?\s*/i, "").
 async function translateSection(lang: Lang, section: string, strings: Flat, token: string | null): Promise<Flat> {
   const system =
     `You translate the website of Invenio Homes, a luxury villa sales agency in Ibiza, from English into ${LANG_ENGLISH[lang]}. ` +
-    "Write natural, polished copy for wealthy home buyers and owners, formal address (usted / Lei / u). Short UI labels stay short. " +
+    `Write natural, polished copy for wealthy home buyers and owners. ${FORMAL[lang]} Short UI labels stay short. ` +
     `${KEEP} Answer with one JSON object only: the same keys, translated values.`;
   const started = Date.now();
   const out = json(await complete(token, system, JSON.stringify(strings), 6_000)) as Flat;
@@ -108,7 +118,7 @@ export async function getDict(lang: Lang): Promise<Dict> {
     SECTIONS.map(async ({ section, strings, hash }) => {
       const key = `dict:${lang}:${section}`;
       if (coolingDown(key)) return;
-      const job = unstable_cache(() => translateSection(lang, section, strings, token), ["dict", lang, section, hash], { revalidate: false, tags: ["dict"] })().catch(
+      const job = unstable_cache(() => translateSection(lang, section, strings, token), ["dict", PROMPT_VERSION, lang, section, hash], { revalidate: false, tags: ["dict"] })().catch(
         (e) => {
           failedAt.set(key, Date.now());
           console.error(`translation ${lang}/${section} failed:`, e instanceof Error ? e.message : e);
@@ -135,11 +145,11 @@ export async function translateText(lang: Lang, text: string | null): Promise<st
         complete(
           token,
           `Translate this property description for a luxury villa sales website in Ibiza from English into ${LANG_ENGLISH[lang]}. ` +
-            `Keep the paragraphs. ${KEEP} Answer with the translation only.`,
+            `Keep the paragraphs. ${FORMAL[lang]} ${KEEP} Answer with the translation only.`,
           text,
           4000,
         ),
-      ["sale-text", lang, key],
+      ["sale-text", PROMPT_VERSION, lang, key],
       { revalidate: false, tags: ["sale-text"] },
     )().catch(() => {
       failedAt.set(`text:${lang}:${key}`, Date.now());
