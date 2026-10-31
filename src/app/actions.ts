@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { ACTOR, hasDb, q } from "@/lib/db";
 import { isRequestStatus, MUST_HAVES, OWNER_ASKED, OWNER_CONFIRMED, VIEWING_CONFIRMED, VIEWING_PROPOSED } from "@/lib/rules";
 import { href, isLang, type Lang } from "@/lib/i18n";
@@ -76,6 +77,75 @@ export async function submitValuation(f: FormData) {
 }
 
 // ---- portal ----------------------------------------------------------------------------------------------------
+
+/** Admin portal login only (the middleware sets these headers from the Basic auth, a browser can't). */
+async function portalAdmin(): Promise<string | null> {
+  const h = await headers();
+  if (h.get("x-portal-role") !== "admin") return null;
+  const user = decodeURIComponent(h.get("x-portal-user") ?? "").trim();
+  return `${user || "Admin"} (sales portal)`;
+}
+
+async function history(uuid: string, field: string, oldValue: unknown, newValue: unknown, by: string) {
+  await q(`insert into villa_sale_history (villa_uuid, field, old_value, new_value, changed_by) values ($1::uuid, $2, $3::jsonb, $4::jsonb, $5)`, [
+    uuid, field, JSON.stringify(oldValue), JSON.stringify(newValue), by,
+  ]);
+}
+
+/**
+ * Owner-sheet villa → a draft listing (Edo, 31 Oct 2026: admins see every villa flagged for sale, listed or not).
+ * Starts from the sheet's answers, as the portal's Sale tab does; never overwrites a listing that already exists.
+ */
+export async function createListing(f: FormData) {
+  const by = await portalAdmin();
+  const uuid = s(f, "uuid").toLowerCase();
+  const ref = s(f, "ref");
+  if (!by || !/^[0-9a-f-]{36}$/.test(uuid) || !hasDb()) redirect(`/portal/listings/${encodeURIComponent(ref)}?error=create`);
+  const rows = await q<{ villa_uuid: string }>(
+    `insert into villa_sale (villa_uuid, for_sale, status, asking_price_eur, negotiable, exclusive_agent, off_market, rentable_while_on_sale, created_by, updated_by)
+     select s.villa_uuid, true, 'draft', coalesce(s.confirmed_price_eur, s.price_for_portal_eur, s.current_price_eur), s.negotiable, s.exclusive_agent,
+            coalesce(s.off_market, false), s.rentable_while_on_sale, $2, $2
+       from villa_sale_status s where s.villa_uuid = $1::uuid and s.removed_at is null
+     on conflict (villa_uuid) do nothing
+     returning villa_uuid::text`,
+    [uuid, by],
+  );
+  if (rows.length) {
+    await history(uuid, "forSale", false, true, by);
+    await history(uuid, "status", null, "draft", by);
+  }
+  revalidatePath("/portal");
+  redirect(`/portal/listings/${encodeURIComponent(ref)}`);
+}
+
+/**
+ * Admins approve a listing themselves (Edo, 31 Oct 2026), or take it back to draft. Approval puts it on the public
+ * site; the page lists what is still missing and asks for an explicit "approve anyway" when something is.
+ */
+export async function setListingStatus(f: FormData) {
+  const by = await portalAdmin();
+  const uuid = s(f, "uuid").toLowerCase();
+  const ref = s(f, "ref");
+  const to = s(f, "to");
+  if (!by || !/^[0-9a-f-]{36}$/.test(uuid) || !["approved", "draft"].includes(to) || !hasDb()) redirect(`/portal/listings/${encodeURIComponent(ref)}?error=status`);
+  if (to === "approved" && s(f, "missing") && f.get("anyway") !== "on") redirect(`/portal/listings/${encodeURIComponent(ref)}?error=anyway#approval`);
+  const cur = await q<{ status: string }>("select status from villa_sale where villa_uuid = $1::uuid and for_sale", [uuid]);
+  if (!cur.length) redirect(`/portal/listings/${encodeURIComponent(ref)}?error=status`);
+  const from = cur[0].status;
+  const allowed = to === "approved" ? ["draft", "review"].includes(from) : ["review", "approved"].includes(from);
+  if (allowed) {
+    await q(
+      to === "approved"
+        ? "update villa_sale set status = 'approved', approved_by = $2, approved_at = now(), updated_by = $2, updated_at = now() where villa_uuid = $1::uuid"
+        : "update villa_sale set status = 'draft', approved_by = null, approved_at = null, updated_by = $2, updated_at = now() where villa_uuid = $1::uuid",
+      [uuid, by],
+    );
+    await history(uuid, "status", from, to, by);
+  }
+  revalidatePath("/portal");
+  revalidatePath(`/portal/listings/${encodeURIComponent(ref)}`);
+  redirect(`/portal/listings/${encodeURIComponent(ref)}#approval`);
+}
 
 export async function setRequestStatus(f: FormData) {
   const id = Number(s(f, "id"));

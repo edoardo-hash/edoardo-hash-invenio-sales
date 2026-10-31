@@ -87,7 +87,7 @@ export default async function ForSale({ searchParams }: { searchParams: Promise<
               <tbody>
                 {sheet.data.map((r) => (
                   <tr key={r.uuid}>
-                    <td><b style={{ fontWeight: 500, display: "block" }}>V-{r.uuid.replace(/-/g, "").slice(0, 6)}</b><VillaNames admin={admin} invenioName={r.invenio_name} realName={r.real_name} /></td>
+                    <td><Link href={`/portal/listings/V-${r.uuid.replace(/-/g, "").slice(0, 6)}`} style={{ fontWeight: 500, display: "block" }}>V-{r.uuid.replace(/-/g, "").slice(0, 6)}</Link><VillaNames admin={admin} invenioName={r.invenio_name} realName={r.real_name} /></td>
                     <td>{r.area ?? "—"}</td>
                     <td>{r.bedrooms ?? "—"}</td>
                     <td style={{ textAlign: "right" }}>{eur(r.price === null ? null : Number(r.price))}</td>

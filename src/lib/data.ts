@@ -202,6 +202,59 @@ export const sheetOnly = () =>
     ),
   );
 
+/** One villa from the owner sheet, found by its reference (V- + the first 6 characters of its uuid). */
+export interface SheetVilla {
+  uuid: string;
+  ref: string;
+  invenioName: string | null;
+  realName: string | null;
+  area: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  price: number | null;
+  negotiable: boolean | null;
+  exclusiveAgent: string | null;
+  offMarket: boolean | null;
+  rentableWhileOnSale: boolean | null;
+  stillForSale: boolean | null;
+  ham: string | null;
+  salesContact: string | null;
+  salesContactEmail: string | null;
+  action: string | null;
+  notes: string | null;
+  photo: string | null;
+  hasListing: boolean;
+}
+export const sheetVillaByRef = (ref: string) =>
+  load(async () => {
+    const m = /^v-([0-9a-f]{6})$/i.exec(decodeURIComponent(ref).trim());
+    if (!m) return null;
+    const rows = await q<{
+      uuid: string; invenio_name: string | null; real_name: string | null; area: string | null; bedrooms: number | null; bathrooms: number | null;
+      price: string | null; negotiable: boolean | null; exclusive_agent: string | null; off_market: boolean | null; rentable_while_on_sale: boolean | null;
+      still_for_sale: boolean | null; ham_name: string | null; sales_contact: string | null; sales_contact_email: string | null; action: string | null;
+      notes: string | null; photos: unknown; has_listing: boolean;
+    }>(
+      `select s.villa_uuid::text as uuid, s.unique_name as invenio_name, s.villa_name as real_name, s.area, s.bedrooms, s.bathrooms,
+              coalesce(s.confirmed_price_eur, s.price_for_portal_eur, s.current_price_eur)::text as price, s.negotiable, s.exclusive_agent,
+              s.off_market, s.rentable_while_on_sale, s.still_for_sale, s.ham_name, s.sales_contact, s.sales_contact_email, s.action, s.notes,
+              v.data->'photos' as photos, exists (select 1 from villa_sale x where x.villa_uuid = s.villa_uuid) as has_listing
+         from villa_sale_status s left join villa_snapshot v on v.uuid = s.villa_uuid
+        where s.removed_at is null and replace(s.villa_uuid::text, '-', '') like $1
+        limit 2`,
+      [`${m[1].toLowerCase()}%`],
+    );
+    if (rows.length !== 1) return null; // none, or two villas share the 6 characters: never guess
+    const r = rows[0];
+    const photos = Array.isArray(r.photos) ? (r.photos as unknown[]).filter((p): p is string => typeof p === "string") : [];
+    return {
+      uuid: r.uuid.toLowerCase(), ref: refOf(r.uuid), invenioName: r.invenio_name, realName: r.real_name, area: r.area, bedrooms: r.bedrooms,
+      bathrooms: r.bathrooms, price: num(r.price), negotiable: r.negotiable, exclusiveAgent: r.exclusive_agent, offMarket: r.off_market,
+      rentableWhileOnSale: r.rentable_while_on_sale, stillForSale: r.still_for_sale, ham: r.ham_name, salesContact: r.sales_contact,
+      salesContactEmail: r.sales_contact_email, action: r.action, notes: r.notes, photo: photos[0] ?? null, hasListing: r.has_listing,
+    } satisfies SheetVilla;
+  });
+
 /** Due-diligence progress per villa: checked or not-applicable items, publish gate and the rest. */
 export async function docProgress(uuids: string[]) {
   const out = new Map<string, { publish: number; offer: number; byKey: Map<string, string> }>();

@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { activities, allListings, clause7State, docProgress, findByRef, listRequests, sentVillas } from "@/lib/data";
+import { activities, allListings, clause7State, docProgress, findByRef, listRequests, sentVillas, sheetVillaByRef, type Listing, type SheetVilla } from "@/lib/data";
 import { day, eur, isLicensed, OFFER_TOTAL, PUBLISH_KEYS, requestStatusLabel, saleStatus } from "@/lib/rules";
 import { isPortalAdmin, PageHead, PortalShell, VillaNames } from "@/components/portal";
 import { FEATURE_GROUPS, FEATURES, featureText, GROUP_LABELS, FEATURE_LABELS } from "@/lib/features";
 import { DbNotice } from "@/components/site";
 import { MarketPanel } from "@/components/market";
+import { createListing, setListingStatus } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 type Params = Promise<{ ref: string }>;
@@ -24,7 +25,13 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
   const res = await allListings();
   if (!res.ok) return <PortalShell current="sale"><PageHead title={decodeURIComponent(ref)} /><DbNotice reason={res.reason} message={res.message} /></PortalShell>;
   const l = await findByRef(res.data, ref);
-  if (!l) notFound();
+  if (!l) {
+    // Not listed yet (Edo, 31 Oct 2026): admins see every villa flagged for sale on the owner sheet and can list it.
+    if (!(await isPortalAdmin())) notFound();
+    const sv = await sheetVillaByRef(ref);
+    if (!sv.ok || !sv.data) notFound();
+    return <NotListed v={sv.data} error={sp.error} />;
+  }
 
   const [docs, sent, acts, reqs, admin] = await Promise.all([docProgress([l.uuid]), sentVillas({ uuid: l.uuid }), activities({ uuid: l.uuid }), listRequests(), isPortalAdmin()]);
   const d = docs.get(l.uuid);
@@ -102,6 +109,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
         </div>
 
         <div className="stack" style={{ flex: "1 1 340px", minWidth: 0, gap: 24 }}>
+          {admin ? <Approval l={l} keyDocs={d?.byKey ?? new Map()} error={sp.error} /> : null}
+
           <section className="panel" aria-labelledby="sh-h">
             <div className="ph2"><h2 id="sh-h">Share with a buyer</h2><span className="new">New</span></div>
             <div className="pb stack" style={{ gap: 12, paddingTop: 16 }}>
@@ -141,6 +150,104 @@ export default async function ListingPage({ params, searchParams }: { params: Pa
             </ol>
           </section>
         </div>
+      </div>
+    </PortalShell>
+  );
+}
+
+const KEY_DOCS: [string, string][] = [["nota_simple", "Nota simple"], ["escritura", "Title deed"], ["mandate", "Signed mandate"]];
+const hasDoc = (st: string | undefined) => st === "uploaded" || st === "checked";
+
+/** Admins approve themselves (Edo, 31 Oct 2026). What David's approval checks is listed; missing items ask for "approve anyway". */
+function Approval({ l, keyDocs, error }: { l: Listing; keyDocs: Map<string, string>; error?: string }) {
+  const checks: { ok: boolean; label: string }[] = [
+    { ok: l.askingPrice !== null || l.priceOnRequest, label: l.priceOnRequest ? "Price on request" : l.askingPrice !== null ? `Asking price ${eur(l.askingPrice)}` : "Asking price (or price on request)" },
+    { ok: !!l.mandateType, label: l.mandateType ? `Mandate: ${l.mandateType === "exclusive" ? "exclusive" : l.mandateType === "non_exclusive" ? "non-exclusive" : "not signed"}` : "Mandate type" },
+    ...KEY_DOCS.map(([k, label]) => ({ ok: hasDoc(keyDocs.get(k)), label: `${label}${hasDoc(keyDocs.get(k)) ? ` (${keyDocs.get(k)})` : ""}` })),
+    { ok: l.saleFeatures.size > 0, label: "Features filled in" },
+    { ok: l.photos.length > 0, label: "Photos" },
+  ];
+  const missing = checks.filter((c) => !c.ok).map((c) => c.label);
+  const live = l.status === "approved" || l.status === "under_offer";
+  const canApprove = l.status === "draft" || l.status === "review";
+  return (
+    <section className="panel" aria-labelledby="ap-h" id="approval">
+      <div className="ph2"><h2 id="ap-h">Approval</h2><span className="small">{live ? `Live · ${l.approvedBy ?? "approved"}` : "Not on the website yet"}</span></div>
+      <div className="pb stack" style={{ gap: 12, paddingTop: 16 }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+          {checks.map((c) => (
+            <li key={c.label} className="inline" style={{ gap: 8, flexWrap: "nowrap" }}>
+              <span aria-hidden="true" style={{ width: 18, textAlign: "center", color: c.ok ? "var(--green, #1F3A32)" : "#B4532A" }}>{c.ok ? "✓" : "✗"}</span>
+              <span className={c.ok ? undefined : "small"}>{c.ok ? c.label : `Missing: ${c.label}`}</span>
+            </li>
+          ))}
+        </ul>
+        {error === "anyway" ? <p role="alert" style={{ color: "#B4532A" }}>Something is still missing: tick &quot;Approve anyway&quot; to publish it as it is.</p> : null}
+        {error === "status" ? <p role="alert" style={{ color: "#B4532A" }}>The status could not be changed. Reload the page and try again.</p> : null}
+        {canApprove ? (
+          <form action={setListingStatus} className="stack" style={{ gap: 10 }}>
+            <input type="hidden" name="uuid" value={l.uuid} />
+            <input type="hidden" name="ref" value={l.ref} />
+            <input type="hidden" name="to" value="approved" />
+            <input type="hidden" name="missing" value={missing.join(", ")} />
+            {missing.length ? (
+              <label className="inline" style={{ gap: 8, flexWrap: "nowrap", alignItems: "flex-start" }}>
+                <input type="checkbox" name="anyway" style={{ marginTop: 4 }} />
+                <span className="small">Approve anyway, without the missing items above</span>
+              </label>
+            ) : null}
+            <button className="btn solid" type="submit">Approve and publish</button>
+            <p className="small">It goes on the website and becomes visible to agents straight away{l.offMarket ? " (off-market: agents only, not the website)" : ""}.</p>
+          </form>
+        ) : live ? (
+          <form action={setListingStatus}>
+            <input type="hidden" name="uuid" value={l.uuid} />
+            <input type="hidden" name="ref" value={l.ref} />
+            <input type="hidden" name="to" value="draft" />
+            {l.status === "approved" ? <button className="btn" type="submit">Take off the website (back to draft)</button> : <p className="small">Under offer: change it on the portal&apos;s Sale tab.</p>}
+          </form>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/** An owner-sheet villa with no listing yet: the sheet's answers and one button to start the listing. */
+function NotListed({ v, error }: { v: SheetVilla; error?: string }) {
+  return (
+    <PortalShell current="sale">
+      <nav className="small" aria-label="Breadcrumb"><Link href="/portal">For sale</Link> / {v.ref}</nav>
+      <PageHead
+        eyebrow={`${v.area ?? "Ibiza"}${v.bedrooms ? ` · ${v.bedrooms} bedrooms` : ""}${v.bathrooms ? `, ${v.bathrooms} baths` : ""}`}
+        title={<span className="inline" style={{ gap: 14 }}>{v.ref} <span className="st neu">Not listed yet</span></span>}
+        intro={<><VillaNames admin invenioName={v.invenioName} realName={v.realName} />On the owner sheet &quot;Villas for sale – status &amp; price&quot;, no listing yet. Only admins see this page.</>}
+      />
+      <div className="inline" style={{ alignItems: "flex-start", gap: 24 }}>
+        <section className="panel" aria-labelledby="sv-h" style={{ flex: "999 1 520px", minWidth: 0 }}>
+          <div className="ph2"><h2 id="sv-h">On the owner sheet</h2><span className="small">{v.action ? `Next step: ${v.action}` : ""}</span></div>
+          <div className="pb">
+            <div className="kv"><span>Sheet price</span><span>{v.price !== null ? eur(v.price) : "No price yet"}</span></div>
+            <div className="kv"><span>Negotiable</span><span>{yn(v.negotiable)}</span></div>
+            <div className="kv"><span>Owner still selling</span><span>{yn(v.stillForSale)}</span></div>
+            <div className="kv"><span>HAM</span><span>{v.salesContact && v.salesContact !== "No contact" ? v.salesContact : v.ham ?? "No HAM on file"}</span></div>
+            <div className="kv"><span>Exclusive agent elsewhere</span><span>{v.exclusiveAgent ?? "—"}</span></div>
+            <div className="kv"><span>Off-market</span><span>{yn(v.offMarket)}</span></div>
+            <div className="kv"><span>Rentable while on sale</span><span>{yn(v.rentableWhileOnSale)}</span></div>
+            {v.notes ? <div className="kv"><span>Sheet notes</span><span style={{ textAlign: "right", maxWidth: "60ch" }}>{v.notes}</span></div> : null}
+          </div>
+        </section>
+        <section className="panel" aria-labelledby="mk-h" style={{ flex: "1 1 340px", minWidth: 0 }}>
+          <div className="ph2"><h2 id="mk-h">Make it a listing</h2></div>
+          <div className="pb stack" style={{ gap: 12, paddingTop: 16 }}>
+            <p className="small" style={{ lineHeight: 1.5 }}>Creates a draft listing with the sheet&apos;s price and answers. It isn&apos;t public until it is approved: then fill in the mandate, documents and features on the portal&apos;s Sale tab, or approve it here.</p>
+            {error === "create" ? <p role="alert" style={{ color: "#B4532A" }}>The listing could not be created. Reload the page and try again.</p> : null}
+            <form action={createListing}>
+              <input type="hidden" name="uuid" value={v.uuid} />
+              <input type="hidden" name="ref" value={v.ref} />
+              <button className="btn solid" type="submit">Create draft listing</button>
+            </form>
+          </div>
+        </section>
       </div>
     </PortalShell>
   );

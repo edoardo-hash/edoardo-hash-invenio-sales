@@ -25,6 +25,7 @@ export function middleware(req: NextRequest) {
   }
   const headers = new Headers(req.headers);
   headers.delete("x-portal-role"); // the public site never has a portal role
+  headers.delete("x-portal-user");
   if (LOCALES.includes(seg)) {
     headers.set("x-lang", seg);
     headers.set("x-path", pathname.slice(seg.length + 1) || "/");
@@ -54,6 +55,9 @@ function portal(req: NextRequest) {
     if (role) {
       const headers = new Headers(req.headers);
       headers.set("x-portal-role", role);
+      // The user name typed at sign-in (any text): only to say who approved a listing, never for access.
+      const user = decoded.slice(0, Math.max(0, decoded.indexOf(":"))).replace(/[^\p{L}\p{N} .@'_-]/gu, "").trim().slice(0, 60);
+      headers.set("x-portal-user", encodeURIComponent(user));
       return NextResponse.next({ request: { headers } });
     }
   }
