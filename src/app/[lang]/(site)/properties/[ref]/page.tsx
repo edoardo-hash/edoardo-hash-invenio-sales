@@ -94,7 +94,7 @@ export default async function Property({ params, searchParams }: { params: Param
         </section>
 
         <div className="wrap">
-          <Gallery photos={l.photos} alt={(n) => fmt(P.photoAlt, { title, n })} note={l.photos.length > 5 ? fmt(P.morePhotos, { n: l.photos.length }) : undefined} />
+          <Gallery photos={l.photos} alts={l.photos.slice(0, 5).map((_, i) => fmt(P.photoAlt, { title, n: i + 1 }))} close={P.close} note={l.photos.length > 5 ? fmt(P.morePhotos, { n: l.photos.length }) : undefined} />
         </div>
 
         <div className="wrap">

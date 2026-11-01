@@ -257,6 +257,7 @@ export const EN = {
     locationLead: "Distances by road. The map shows the area, about 1 km, never the exact address.",
     mapTitle: "Map of the area around the property in {area}",
     openInMaps: "Open in maps",
+    close: "Close",
     message: "Message",
     messageExample: "I would like the details and to arrange a viewing.",
     consent: "I accept the privacy policy.",

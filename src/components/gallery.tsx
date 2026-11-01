@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
  * The company site's gallery and lightbox: up to five photos in the grid, each opening the lightbox (a <dialog>),
  * arrows and keys to browse. Only the public photos are ever in the page: the rest come after registration.
  */
-export function Gallery({ photos, alt, note }: { photos: string[]; alt: (n: number) => string; note?: string }) {
+export function Gallery({ photos, alts, note, close }: { photos: string[]; alts: string[]; note?: string; close: string }) {
+  const alt = (n: number) => alts[n - 1] ?? "";
   const [index, setIndex] = useState<number | null>(null);
   const ref = useRef<HTMLDialogElement>(null);
   const shown = photos.slice(0, 5);
@@ -43,7 +44,7 @@ export function Gallery({ photos, alt, note }: { photos: string[]; alt: (n: numb
           <>
             <div className="lightbox__top">
               <span>{index + 1} / {shown.length}</span>
-              <button className="lightbox__close" type="button" onClick={() => setIndex(null)}>Close</button>
+              <button className="lightbox__close" type="button" onClick={() => setIndex(null)}>{close}</button>
             </div>
             <div className="lightbox__stage">
               {shown.length > 1 ? <button className="lightbox__btn lightbox__btn--prev" type="button" aria-label="Previous photo" onClick={() => setIndex((index - 1 + shown.length) % shown.length)}>←</button> : null}
