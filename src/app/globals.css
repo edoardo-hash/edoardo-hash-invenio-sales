@@ -2097,3 +2097,15 @@ body[data-hero] .site-header:not(.is-stuck) .header-destinations { opacity: 0.82
 dialog.lightbox { opacity: 1; visibility: visible; display: none; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; border: 0; }
 dialog.lightbox[open] { display: grid; }
 dialog.lightbox::backdrop { background: transparent; }
+
+/* Phones: every control at least 44 px tall (forms, must-have boxes, folds, the mobile bar), without changing the look. */
+@media (max-width: 760px) {
+  .field input, .field select, .filter-select { min-height: 44px; }
+  .check, .check-line { min-height: 44px; align-items: center; }
+  .check-grid .check { align-items: center; }
+  .check-grid .check input { margin-top: 0; }
+  .more-features summary { min-height: 44px; align-items: center; }
+  .mobile-bar .btn--small { min-height: 44px; }
+  .form-note a, .check-line a, .panel-note a, .property-row__foot .link, .section-head__aside .link { position: relative; }
+  .form-note a::after, .check-line a::after { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 44px; transform: translateY(-50%); }
+}
