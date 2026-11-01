@@ -78,4 +78,4 @@ function askPassword(realm: string) {
   });
 }
 
-export const config = { matcher: ["/((?!_next/|favicon|.*\\.(?:svg|jpg|jpeg|png|webp|ico|txt|xml)$).*)"] };
+export const config = { matcher: ["/((?!_next/|favicon|.*\\.(?:svg|jpg|jpeg|png|webp|ico|txt|xml|woff2|woff|css|js|json|webmanifest)$).*)"] };

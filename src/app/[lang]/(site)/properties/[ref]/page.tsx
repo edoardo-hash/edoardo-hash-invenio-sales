@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { findByRef, publicListings } from "@/lib/data";
-import { eur, isLicensed, matchRequest } from "@/lib/rules";
+import { isLicensed, matchRequest } from "@/lib/rules";
 import { fmt, href, isLang, type Lang } from "@/lib/i18n";
 import { getDict, translateText } from "@/lib/i18n/translate";
 import { FEATURE_GROUPS, FEATURES, featureText } from "@/lib/features";
-import { DbNotice, ListingCard, listingTitle, SiteFooter, SiteHeader } from "@/components/site";
+import { Arrow, DAVID, DbNotice, ExpertCard, Icon, ListingCard, listingPrice, listingTitle, SiteFooter, SiteHeader, Specs, whatsapp } from "@/components/site";
+import { Gallery } from "@/components/gallery";
 import { submitEnquiry } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +21,12 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: `Ref. ${decodeURIComponent(ref)}` };
 }
 
-const Tick = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7.5l3 3 7-7" fill="none" stroke="#0E6B62" strokeWidth="1.6" /></svg>
-);
-const Lock = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="6" width="9" height="6.5" rx="1" fill="none" stroke="#5C6662" strokeWidth="1.2" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" fill="none" stroke="#5C6662" strokeWidth="1.2" /></svg>
-);
-
+/**
+ * One villa for sale: the same page as the villa of a rental offer (invenio-portal /o2/<code>/<uuid>, 1 Nov 2026) —
+ * title and area, gallery, facts, text, features in groups, location as an area, a sticky panel — with sale information
+ * in place of dates and stay terms. Reference and area only, never the villa's name; the exact address, the full
+ * gallery and the documents come after the owner has confirmed the buyer.
+ */
 export default async function Property({ params, searchParams }: { params: Params; searchParams: SP }) {
   const p = await params;
   const lang = L(p.lang);
@@ -37,7 +37,7 @@ export default async function Property({ params, searchParams }: { params: Param
     return (
       <>
         <SiteHeader t={t} lang={lang} current="properties" />
-        <main className="wrap section"><DbNotice reason={res.reason} t={t} /></main>
+        <main id="main" className="wrap thanks"><DbNotice reason={res.reason} t={t} /></main>
         <SiteFooter t={t} lang={lang} />
       </>
     );
@@ -50,10 +50,10 @@ export default async function Property({ params, searchParams }: { params: Param
     { budgetMin: null, budgetMax: (l.askingPrice ?? 0) * 1.4 || null, areas: [l.area, l.district], minBedrooms: Math.max(1, l.bedrooms - 1), mustHaves: [], licenceNeeded: false },
     res.data.filter((x) => x.uuid !== l.uuid),
   ).slice(0, 3).map((m) => m.listing);
-  const photos = l.photos.slice(0, 5);
   const licensed = isLicensed(l.licence);
   const title = listingTitle(t, l);
   const status = l.status === "under_offer" ? P.underOffer : P.forSale;
+  const licenceLine = licensed ? `${P.touristLicence}: ${(l.licenceTransferable ? P.licenceTransferable : P.yes).toLowerCase()}` : null;
   // Yes only: a buyer sees what the home has, never a list of "no".
   const featureGroups = FEATURE_GROUPS.map((g) => ({
     g,
@@ -68,147 +68,170 @@ export default async function Property({ params, searchParams }: { params: Param
         [P.distAirport, null, km(l.road.airport)],
       ] as [string, string | null, string | null][]).filter((d) => d[2])
     : [];
-  const facts: [string | number, string][] = [
-    [l.legalBedrooms ?? l.bedrooms, P.bedrooms],
-    [l.bathrooms, P.bathrooms],
-    [l.builtM2 ? `${Math.round(l.builtM2).toLocaleString("en-GB")} m²` : "—", P.built],
-    [l.plotM2 ? `${Math.round(l.plotM2).toLocaleString("en-GB")} m²` : "—", P.plot],
-  ];
+  const g = l.approxGps;
+  const bbox = g ? [g.lng - 0.012, g.lat - 0.0095, g.lng + 0.012, g.lat + 0.0095].map((n) => n.toFixed(4)).join(",") : null;
+  const wa = whatsapp(fmt(P.whatsappText, { ref: l.ref }));
 
   return (
     <>
       <SiteHeader t={t} lang={lang} current="properties" />
-      <main>
-        <div className="wrap">
-          <nav className="crumbs" aria-label={P.breadcrumb}><Link href={href(lang, "/")}>{t.nav.sales}</Link> / <Link href={href(lang, "/properties")}>{t.nav.properties}</Link> / <span>Ref. {l.ref}</span></nav>
-          <div className="gallery">
-            {photos.map((ph, i) => (
-              <figure key={ph}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={ph} alt={fmt(P.photoAlt, { title, n: i + 1 })} loading={i ? "lazy" : "eager"} />
-                {i === photos.length - 1 && l.photos.length > photos.length ? <span className="more">{fmt(P.morePhotos, { n: l.photos.length })}</span> : null}
-              </figure>
-            ))}
-          </div>
-        </div>
-
-        <section className="section" style={{ paddingTop: 56 }}>
-          <div className="wrap vlayout">
-            <div>
-              <div className="stack" style={{ gap: 12 }}>
-                <p className="eb">{status} · Ref. {l.ref}</p>
-                <h1 style={{ fontSize: "clamp(40px,5vw,72px)", lineHeight: 1.04 }}>{title}</h1>
-                <p className="lead" style={{ fontSize: 16 }}>{l.area}{l.district && l.district !== l.area ? `, ${l.district}` : ""} · {P.locationLine}</p>
-              </div>
-              <div className="facts">{facts.map(([v, k]) => <div key={k}><b>{v}</b><span>{k}</span></div>)}</div>
-              <div className="vsec">
-                {summary ? (
-                  summary.split(/\n{2,}/).map((para, i) => <p key={i} className="lead" style={{ color: i ? undefined : "var(--ink)", fontSize: i ? 17 : 18, maxWidth: "64ch" }}>{para}</p>)
-                ) : (
-                  <p className="lead ph">{P.noText}</p>
-                )}
-              </div>
-
-              {featureGroups.length ? (
-                <div className="vsec">
-                  <h2>{P.featuresTitle}</h2>
-                  <p className="lead" style={{ fontSize: 15 }}>{P.featuresLead}</p>
-                  <div className="feat-groups">
-                    {featureGroups.map(({ g, items }) => (
-                      <div key={g}>
-                        <p className="lab">{t.featureGroups[g]}</p>
-                        <ul>{items.map((x) => <li key={x}>{x}</li>)}</ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="vsec">
-                <h2>{P.checkedTitle}</h2>
-                <p className="lead" style={{ fontSize: 15 }}>{P.checkedLead}</p>
-                <ul className="list">{[P.checked1, P.checked2, P.checked3, P.checked4, P.checked5, P.checked6].map((x) => <li key={x}><Tick />{x}</li>)}</ul>
-              </div>
-
-              <div className="vsec">
-                <h2>{P.sharedTitle}</h2>
-                <p className="lead" style={{ fontSize: 15 }}>{P.sharedLead}</p>
-                <ul className="list">{[P.shared1, P.shared2, P.shared3, P.shared4, P.shared5, P.shared6].map((x) => <li key={x}><Lock />{x}</li>)}</ul>
-              </div>
-
-              <div className="vsec">
-                <h2>{P.goodToKnow}</h2>
-                <div className="terms">
-                  <div><b>{P.reference}</b><span>{l.ref}</span></div>
-                  <div><b>{P.touristLicence}</b><span>{licensed ? (l.licenceTransferable ? P.licenceTransferable : P.yes) : P.noLicence}</span></div>
-                  <div><b>{P.rented}</b><span>{l.rentableWhileOnSale === null ? P.askUs : l.rentableWhileOnSale ? P.rentedYes : P.no}</span></div>
-                  <div><b>{P.viewings}</b><span>{P.viewingsText}</span></div>
-                  <div><b>{P.cadastral}</b><span>{P.afterRegistration}</span></div>
-                  <div><b>{P.signing}</b><span>{P.signingText}</span></div>
-                </div>
-              </div>
-
-              <div className="vsec">
-                <h2>{P.location}</h2>
-                {distances.length ? (
-                  <div className="stack" style={{ gap: 8 }}>
-                    <p className="lab">{P.distancesTitle}</p>
-                    <div className="dist">
-                      {distances.map(([k, name, v]) => (
-                        <div key={k}><p className="small">{k}{name ? ` · ${name}` : ""}</p><p className="v">{v}</p></div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="areamap">
-                  <svg viewBox="0 0 800 350" preserveAspectRatio="xMidYMid slice" role="img" aria-label={`${l.area}, Ibiza`}>
-                    <path d="M0 230 C110 205 160 150 250 160 C330 168 370 120 460 128 C550 136 600 98 690 106 C740 112 780 88 800 80 L800 350 L0 350Z" fill="#F4F3EE" stroke="#DEDCD3" />
-                    <circle cx="400" cy="210" r="72" fill="#0E6B62" opacity=".12" />
-                    <circle cx="400" cy="210" r="72" fill="none" stroke="#0E6B62" strokeDasharray="4 5" opacity=".6" />
-                    <text x="400" y="214" textAnchor="middle" fontFamily="Hanken Grotesk, sans-serif" fontSize="13" fill="#0E6B62" letterSpacing="2">{l.area.toUpperCase()}</text>
-                  </svg>
-                  <p>{P.areaOnly}</p>
-                </div>
-              </div>
-            </div>
-
-            <aside className="panel-aside" aria-label={fmt(P.askAbout, { ref: l.ref })}>
+      <main id="main">
+        <section className="villa-head">
+          <div className="wrap">
+            <nav className="breadcrumbs" aria-label={P.breadcrumb}>
+              <Link href={href(lang, "/")}>{t.nav.sales}</Link><span>/</span><Link href={href(lang, "/properties")}>{t.nav.properties}</Link><span>/</span><span>{l.ref}</span>
+            </nav>
+            <div className="villa-head__top">
               <div>
-                <p className="small">{fmt(hidePrice ? P.priceLabel : P.askingPrice, { ref: l.ref })}</p>
-                <p className="price">{hidePrice ? P.onRequest : eur(l.askingPrice)}</p>
+                <p className="eyebrow">{status} · Ref. {l.ref}</p>
+                <h1>{title}</h1>
+                <p className="villa-head__tagline">{l.area}{l.district && l.district !== l.area ? `, ${l.district}` : ""} · {P.locationLine}</p>
               </div>
-              <div className="prow"><span>{P.status}</span><span style={{ color: "var(--accent)", fontWeight: 500 }}>{status}</span></div>
-              <div className="prow"><span>{P.bedrooms}</span><span>{l.legalBedrooms ?? l.bedrooms}</span></div>
-              <div className="prow"><span>{P.bathrooms}</span><span>{l.bathrooms}</span></div>
-              <div className="prow"><span>{P.touristLicence}</span><span>{licensed ? P.yes : P.no}</span></div>
-              <form id="enquire" action={submitEnquiry} className="stack" style={{ gap: 12, borderTop: "1px solid var(--hair)", paddingTop: 16 }}>
-                {sp.error ? <p className="note-err" role="alert">{t.brief.error}</p> : null}
-                <input type="hidden" name="lang" value={lang} />
-                <input type="hidden" name="ref" value={l.ref} />
-                <input type="hidden" name="uuid" value={l.uuid} />
-                <div className="field"><label htmlFor="e-name">{t.brief.name}</label><input id="e-name" name="name" autoComplete="name" required /></div>
-                <div className="field"><label htmlFor="e-email">{t.brief.email}</label><input id="e-email" name="email" type="email" autoComplete="email" /></div>
-                <div className="field"><label htmlFor="e-phone">{t.brief.phone}</label><input id="e-phone" name="phone" type="tel" autoComplete="tel" /></div>
-                <button className="btn solid" type="submit" name="what" value="details" style={{ width: "100%" }}>{P.request}</button>
-                <button className="btn ghost" type="submit" name="what" value="viewing" style={{ width: "100%" }}>{P.viewing}</button>
-                <p className="small" style={{ textAlign: "center", lineHeight: 1.5 }}>{P.registerNote}</p>
-              </form>
-              <div className="inline" style={{ gap: 14, borderTop: "1px solid var(--hair)", paddingTop: 18 }}>
-                <div className="mono" aria-hidden="true">DR</div>
-                <div><p style={{ fontSize: 15, fontWeight: 500 }}>David Ramiro</p><p className="small">{t.home.headOfSales} · <a href="mailto:david@inveniohomes.com" style={{ color: "var(--accent)" }}>{P.emailDavid}</a></p></div>
-              </div>
-            </aside>
+              <div className="villa-head__area"><strong>{l.area}</strong>{l.district && l.district !== l.area ? `${l.district}, ` : ""}Ibiza</div>
+            </div>
+            <Specs t={t} l={l} licence={licenceLine} />
           </div>
         </section>
 
+        <div className="wrap">
+          <Gallery photos={l.photos} alt={(n) => fmt(P.photoAlt, { title, n })} note={l.photos.length > 5 ? fmt(P.morePhotos, { n: l.photos.length }) : undefined} />
+        </div>
+
+        <div className="wrap">
+          <div className="villa-layout">
+            <div className="villa-main">
+              <section className="villa-section">
+                <div className="villa-intro">
+                  {summary ? summary.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>) : <p className="muted">{P.noText}</p>}
+                </div>
+              </section>
+
+              {featureGroups.length ? (
+                <section className="villa-section">
+                  <h2>{P.featuresTitle}</h2>
+                  <p className="muted" style={{ fontSize: 14, marginBottom: 22 }}>{P.featuresLead}</p>
+                  <div className="amenity-groups">
+                    {featureGroups.map(({ g, items }) => (
+                      <div key={g} className="amenity-group">
+                        <h4>{t.featureGroups[g]}</h4>
+                        <ul className="amenity-list">{items.map((x) => <li key={x}>{x}</li>)}</ul>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="villa-section">
+                <h2>{P.checkedTitle}</h2>
+                <p className="muted" style={{ fontSize: 14, marginBottom: 18 }}>{P.checkedLead}</p>
+                <ul className="doc-list">{[P.checked1, P.checked2, P.checked3, P.checked4, P.checked5, P.checked6].map((x) => <li key={x}><Icon.tick /><span>{x}</span></li>)}</ul>
+              </section>
+
+              <section className="villa-section">
+                <h2>{P.sharedTitle}</h2>
+                <p className="muted" style={{ fontSize: 14, marginBottom: 18 }}>{P.sharedLead}</p>
+                <ul className="doc-list doc-list--locked">{[P.shared1, P.shared2, P.shared3, P.shared4, P.shared5, P.shared6].map((x) => <li key={x}><Icon.lock /><span>{x}</span></li>)}</ul>
+              </section>
+
+              <section className="villa-section">
+                <h2>{P.goodToKnow}</h2>
+                <dl className="fact-grid">
+                  <div className="fact"><dt>{P.reference}</dt><dd>{l.ref}</dd></div>
+                  <div className="fact"><dt>{P.touristLicence}</dt><dd>{licensed ? (l.licenceTransferable ? P.licenceTransferable : P.yes) : P.noLicence}</dd></div>
+                  {l.legalBedrooms && l.legalBedrooms !== l.bedrooms ? <div className="fact"><dt>{P.bedroomsLegal}</dt><dd>{fmt(P.bedroomsLegalText, { legal: l.legalBedrooms, described: l.bedrooms })}</dd></div> : null}
+                  <div className="fact"><dt>{P.rented}</dt><dd>{l.rentableWhileOnSale === null ? P.askUs : l.rentableWhileOnSale ? P.rentedYes : P.no}</dd></div>
+                  <div className="fact"><dt>{P.viewings}</dt><dd>{P.viewingsText}</dd></div>
+                  <div className="fact"><dt>{P.cadastral}</dt><dd>{P.afterRegistration}</dd></div>
+                  <div className="fact"><dt>{P.signing}</dt><dd>{P.signingText}</dd></div>
+                </dl>
+              </section>
+
+              <section className="villa-section">
+                <h2>{P.location}</h2>
+                <p className="muted" style={{ fontSize: 14 }}>{P.locationLead}</p>
+                {distances.length ? (
+                  <div className="distance-list">
+                    {distances.map(([k, name, v]) => (
+                      <div key={k} className="distance-row"><span className="distance-row__label">{k}</span><span className="distance-row__name">{name ?? ""}</span><span className="distance-row__km">{v}</span></div>
+                    ))}
+                  </div>
+                ) : null}
+                {bbox && g ? (
+                  <>
+                    <div className="map-frame map-frame--area" style={{ marginTop: 26 }}>
+                      <iframe title={fmt(P.mapTitle, { area: l.area })} src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik`} loading="lazy" />
+                    </div>
+                    <div className="map-note">
+                      <span>{P.areaOnly} · {l.area}, Ibiza</span>
+                      <a className="link" href={`https://www.openstreetmap.org/#map=14/${g.lat.toFixed(4)}/${g.lng.toFixed(4)}`} target="_blank" rel="noopener">{P.openInMaps}</a>
+                    </div>
+                  </>
+                ) : (
+                  <p className="map-note" style={{ marginTop: 18 }}><span>{P.areaOnly} · {l.area}, Ibiza</span></p>
+                )}
+              </section>
+            </div>
+
+            <aside>
+              <div className="booking property-panel" aria-label={fmt(P.askAbout, { ref: l.ref })}>
+                <p className="eyebrow">{fmt(hidePrice ? P.priceLabel : P.askingPrice, { ref: l.ref })}</p>
+                <div className="panel-price"><strong>{hidePrice ? P.onRequest : listingPrice(t, l)}</strong><span>{status}</span></div>
+                <div className="panel-rows">
+                  <div><span>{P.status}</span><strong>{status}</strong></div>
+                  <div><span>{P.bedrooms}</span><strong>{l.legalBedrooms ?? l.bedrooms}</strong></div>
+                  <div><span>{P.bathrooms}</span><strong>{l.bathrooms}</strong></div>
+                  <div><span>{P.touristLicence}</span><strong>{licensed ? P.yes : P.no}</strong></div>
+                </div>
+                <form id="enquire" action={submitEnquiry} className="panel-form">
+                  {sp.error ? <p className="note-err" role="alert">{t.brief.error}</p> : null}
+                  <input type="hidden" name="lang" value={lang} />
+                  <input type="hidden" name="ref" value={l.ref} />
+                  <input type="hidden" name="uuid" value={l.uuid} />
+                  <div className="panel-form__fields">
+                    <div className="field"><label htmlFor="e-name">{t.brief.name} <span aria-hidden="true">*</span></label><input id="e-name" name="name" autoComplete="name" required aria-required="true" /></div>
+                    <div className="field"><label htmlFor="e-email">{t.brief.email}</label><input id="e-email" name="email" type="email" autoComplete="email" /></div>
+                    <div className="field"><label htmlFor="e-phone">{t.brief.phone}</label><input id="e-phone" name="phone" type="tel" autoComplete="tel" /></div>
+                  </div>
+                  <div className="field"><label htmlFor="e-msg">{P.message}</label><textarea id="e-msg" name="message" rows={3} placeholder={P.messageExample} /></div>
+                  <label className="check-line"><input type="checkbox" name="consent" required /><span>{P.consent}</span></label>
+                  <button className="btn btn--block" type="submit" name="what" value="details">{P.request}</button>
+                  <button className="btn btn--block btn--ghost" type="submit" name="what" value="viewing">{P.viewing}</button>
+                </form>
+                <div className="booking__contact">
+                  <a href={`mailto:${DAVID.email}`}><Icon.mail /> {DAVID.email}</a>
+                  <a href={wa} target="_blank" rel="noopener"><Icon.chat /> {t.home.whatsappDavid}</a>
+                  <a href={DAVID.tel}><Icon.phone /> {DAVID.phone}</a>
+                </div>
+                <p className="panel-note">{P.registerNote}</p>
+              </div>
+            </aside>
+          </div>
+        </div>
+
         {similar.length ? (
-          <section className="section hair-top">
+          <section className="section section--tight" style={{ paddingTop: 0 }}>
             <div className="wrap">
-              <div className="head"><div className="stack"><p className="eb">{P.alsoLike}</p><h2 className="h2">{P.similar}</h2></div><Link className="lnk" href={href(lang, "/properties")}>{t.home.allProperties}</Link></div>
-              <div className="grid3">{similar.map((s) => <ListingCard key={s.uuid} t={t} lang={lang} l={s} />)}</div>
+              <div className="section-head">
+                <div><p className="eyebrow">{P.alsoLike}</p><h2>{P.similar}</h2></div>
+                <div className="section-head__aside"><Link className="link" href={href(lang, "/properties")}>{t.home.allProperties}<Arrow /></Link></div>
+              </div>
+              <div className="villa-grid">{similar.map((s) => <ListingCard key={s.uuid} t={t} lang={lang} l={s} />)}</div>
             </div>
           </section>
         ) : null}
+
+        <section className="section section--sand section--tight">
+          <div className="wrap">
+            <div className="brief-layout">
+              <div>
+                <p className="eyebrow">{P.elseEyebrow}</p>
+                <h2>{P.elseTitle}</h2>
+                <p>{P.elseText}</p>
+              </div>
+              <ExpertCard t={t} lang={lang} />
+            </div>
+          </div>
+        </section>
       </main>
       <SiteFooter t={t} lang={lang} />
     </>

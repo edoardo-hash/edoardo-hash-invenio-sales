@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { href, isLang, type Lang } from "@/lib/i18n";
 import { getDict } from "@/lib/i18n/translate";
-import { SiteFooter, SiteHeader } from "@/components/site";
+import { Arrow, SiteFooter, SiteHeader } from "@/components/site";
 
 export const dynamic = "force-dynamic";
 const L = (s: string): Lang => (isLang(s) ? s : "en");
@@ -21,11 +21,14 @@ export default async function Thanks({ params, searchParams }: { params: Promise
   return (
     <>
       <SiteHeader t={t} lang={lang} />
-      <main className="wrap section stack" style={{ maxWidth: 820 }}>
-        <p className="eb">{t.home.eyebrow}</p>
-        <h1 style={{ fontSize: "clamp(36px,4vw,56px)", lineHeight: 1.1 }}>{h}</h1>
-        <p className="lead">{p}</p>
-        <div className="actions"><Link className="btn solid" href={href(lang, "/properties")}>{T.back}</Link><Link className="lnk" href={href(lang, "/")}>{T.home}</Link></div>
+      <main id="main" className="wrap thanks">
+        <p className="eyebrow">{t.home.eyebrow}</p>
+        <h1>{h}</h1>
+        <p className="lede">{p}</p>
+        <div className="btn-row">
+          <Link className="btn" href={href(lang, "/properties")}>{T.back}<Arrow /></Link>
+          <Link className="btn btn--ghost" href={href(lang, "/")}>{T.home}</Link>
+        </div>
       </main>
       <SiteFooter t={t} lang={lang} />
     </>

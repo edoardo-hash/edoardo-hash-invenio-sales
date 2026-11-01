@@ -2,6 +2,7 @@ import "server-only";
 import { hasDb, q } from "./db";
 import { OWNER_ASKED, OWNER_CONFIRMED, PUBLISH_KEYS, VIEWING_CONFIRMED, VIEWING_PROPOSED, type MatchListing } from "./rules";
 import type { FeatureSet } from "./features";
+import { scrubVillaNames } from "./villa-names";
 import road from "@/data/road-km.json";
 
 /** A villa_sale row joined with its villa_snapshot record. Sales always use the reference, never the villa name. */
@@ -32,6 +33,8 @@ export interface Listing extends MatchListing {
   saleFeatures: FeatureSet;
   /** Road km (OSRM, as the portal's area data), never minutes. */
   road: RoadKm | null;
+  /** The portal's stored approximate point, 1–2 km from the house (never the exact GPS): the area map's centre. */
+  approxGps: { lat: number; lng: number } | null;
   /**
    * Admins only (Edo, 30 Oct 2026): Invenio's public name for the villa and the owner's real name.
    * Never on the public site (publicListings drops them) and never for agent logins (see isPortalAdmin).
@@ -87,6 +90,11 @@ interface Row {
 
 const num = (s: string | null) => (s === null ? null : Number(s));
 const str = (x: unknown) => (typeof x === "string" ? x : null);
+const gps = (x: unknown) => {
+  const o = x && typeof x === "object" ? (x as { lat?: unknown; lng?: unknown }) : null;
+  const lat = Number(o?.lat), lng = Number(o?.lng);
+  return o && Number.isFinite(lat) && Number.isFinite(lng) && lat && lng ? { lat, lng } : null;
+};
 export const refOf = (uuid: string, ref?: unknown) => (typeof ref === "string" && ref ? ref : `V-${uuid.replace(/-/g, "").slice(0, 6).toLowerCase()}`);
 
 function toListing(r: Row): Listing {
@@ -128,6 +136,7 @@ function toListing(r: Row): Listing {
     updatedAt: r.updated_at,
     saleFeatures: new Map(),
     road: roadKm(uuid),
+    approxGps: gps(v.approxGps),
   };
 }
 
@@ -180,7 +189,8 @@ export const publicListings = () =>
       (await q<Row>(`${LISTING_SQL} and vs.status in ('approved', 'under_offer') and not vs.off_market order by vs.asking_price_eur nulls last`))
         .map(toListing)
         .filter((l) => l.brand === "IH")
-        .map((l) => ({ ...l, invenioName: null, realName: null })), // the public site never gets villa names
+        // The public site never gets villa names: not as fields, not inside the sale text (Edo, 1 Nov 2026).
+        .map((l) => ({ ...l, publicSummary: scrubVillaNames(l.publicSummary, [l.invenioName, l.realName]) ?? null, invenioName: null, realName: null })),
     ),
   );
 

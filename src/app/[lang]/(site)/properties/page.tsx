@@ -4,7 +4,7 @@ import { publicListings } from "@/lib/data";
 import { MUST_HAVES } from "@/lib/rules";
 import { fmt, href, isLang, type Lang } from "@/lib/i18n";
 import { getDict } from "@/lib/i18n/translate";
-import { DbNotice, ListingCard, SiteFooter, SiteHeader } from "@/components/site";
+import { DbNotice, ExpertCard, Icon, ListingRow, SiteFooter, SiteHeader } from "@/components/site";
 import { BriefForm } from "@/components/brief-form";
 import { MustHaveChips } from "@/components/must-haves";
 import { FEW_LISTINGS } from "@/lib/catalogue";
@@ -20,6 +20,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const t = await getDict(L((await params).lang));
   return { title: t.list.title };
 }
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default async function Properties({ params, searchParams }: { params: Params; searchParams: SP }) {
   const lang = L((await params).lang);
@@ -46,76 +48,101 @@ export default async function Properties({ params, searchParams }: { params: Par
   );
   if (sort === "price-desc") list = [...list].sort((a, b) => (b.askingPrice ?? 0) - (a.askingPrice ?? 0));
   else if (sort === "new") list = [...list].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+  const updated = all.map((l) => l.updatedAt ?? "").sort().at(-1);
+  const updatedLabel = updated ? `${MONTHS[new Date(updated).getUTCMonth()]} ${new Date(updated).getUTCFullYear()}` : null;
+  const Li = t.list;
 
   return (
     <>
       <SiteHeader t={t} lang={lang} current="properties" />
-      <main>
-        <section className="wrap stack" style={{ paddingTop: 72, paddingBottom: 40 }}>
-          <p className="eb">{t.list.eyebrow}</p>
-          <h1 style={{ fontSize: "clamp(40px,4.6vw,64px)", lineHeight: 1.06 }}>{t.list.title}</h1>
-          <div className="inline" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: "16px 32px" }}>
-            <p className="lead">{res.ok ? `${fmt(t.list.count, { shown: list.length, total: all.length })} ` : ""}{t.list.addresses}</p>
-            <Link className="btn ghost" href="#brief">{t.list.saveSearch}</Link>
+      <main id="main">
+        <section className="page-head">
+          <div className="wrap">
+            <div className="page-head__top">
+              <div>
+                <p className="eyebrow">{Li.eyebrow}</p>
+                <h1>{Li.title}</h1>
+                <p className="lede">{Li.lead}</p>
+              </div>
+              <div className="page-head__meta">
+                {res.ok ? <span><strong>{list.length}</strong> {fmt(Li.ofShown, { total: all.length })}</span> : null}
+                <span>{Li.addressesShort}</span>
+                {updatedLabel ? <span>{fmt(Li.updated, { month: updatedLabel })}</span> : null}
+              </div>
+            </div>
           </div>
         </section>
 
         {showFilters ? (
-        <section className="wrap">
-          <form aria-label={t.list.filterAria} className="stack" style={{ gap: 18, borderTop: "1px solid var(--hair)", borderBottom: "1px solid var(--hair)", padding: "24px 0" }}>
-            <div className="cols">
-              <div className="field">
-                <label htmlFor="f-area">{t.search.area}</label>
-                <select id="f-area" name="area" defaultValue={area}>
-                  <option value="">{t.search.anywhere}</option>
-                  {areas.map((a) => <option key={a}>{a}</option>)}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="f-price">{t.search.budget}</label>
-                <select id="f-price" name="price" defaultValue={one(sp.price)}>
-                  <option value="">{t.search.anyPrice}</option><option value="0-5">{t.search.upTo5}</option><option value="5-10">{t.search.from5to10}</option><option value="10-">{t.search.over10}</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="f-beds">{t.search.bedrooms}</label>
-                <select id="f-beds" name="beds" defaultValue={one(sp.beds)}>
-                  <option value="">{t.search.any}</option><option value="4">4+</option><option value="5">5+</option><option value="6">6+</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="f-sort">{t.list.sortBy}</label>
-                <select id="f-sort" name="sort" defaultValue={sort}>
-                  <option value="price">{t.list.priceLow}</option><option value="price-desc">{t.list.priceHigh}</option><option value="new">{t.list.newest}</option>
-                </select>
-              </div>
+          <div className="filter-bar">
+            <div className="wrap">
+              <form aria-label={Li.filterAria}>
+                <div className="filter-bar__row">
+                  <select className="filter-select" name="area" defaultValue={area} aria-label={t.search.area}>
+                    <option value="">{t.search.anywhere}</option>
+                    {areas.map((a) => <option key={a}>{a}</option>)}
+                  </select>
+                  <select className="filter-select" name="beds" defaultValue={one(sp.beds)} aria-label={t.search.bedrooms}>
+                    <option value="">{t.search.anyBedrooms}</option><option value="4">4+</option><option value="5">5+</option><option value="6">6+</option><option value="7">7+</option>
+                  </select>
+                  <select className="filter-select" name="price" defaultValue={one(sp.price)} aria-label={t.search.budget}>
+                    <option value="">{t.search.anyPrice}</option><option value="0-5">{t.search.upTo5}</option><option value="5-10">{t.search.from5to10}</option><option value="10-">{t.search.over10}</option>
+                  </select>
+                  <select className="filter-select" name="sort" defaultValue={sort} aria-label={Li.sortBy}>
+                    <option value="price">{Li.priceLow}</option><option value="price-desc">{Li.priceHigh}</option><option value="new">{Li.newest}</option>
+                  </select>
+                  <button className="btn btn--small" type="submit">{Li.show}</button>
+                  <Link className="filter-clear" href={href(lang, "/properties")}>{Li.clear}</Link>
+                  <div className="filter-bar__spacer" />
+                  <span className="filter-count"><strong>{list.length}</strong> {list.length === 1 ? Li.home : Li.homes}</span>
+                </div>
+                <MustHaveChips t={t} legend={Li.mustHaves} selected={must.map((m) => m.key)} />
+              </form>
             </div>
-            <MustHaveChips t={t} legend={t.list.mustHaves} selected={must.map((m) => m.key)} />
-            <div className="inline"><button className="btn solid" type="submit">{t.list.show}</button><Link className="lnk" href={href(lang, "/properties")}>{t.list.clear}</Link></div>
-          </form>
-        </section>
+          </div>
         ) : null}
 
-        <section className="wrap" style={{ paddingTop: 40, paddingBottom: "var(--sec)" }}>
-          {!res.ok ? <DbNotice reason={res.reason} t={t} /> : list.length ? (
-            <div className="grid3">{list.map((l) => <ListingCard key={l.uuid} t={t} lang={lang} l={l} as="h2" />)}</div>
-          ) : (
-            <p className="lead">{t.list.nothing}</p>
-          )}
+        <section className="results results--sales">
+          <div className="wrap">
+            {!res.ok ? (
+              <DbNotice reason={res.reason} t={t} />
+            ) : list.length ? (
+              <div className="results__grid results__grid--one">{list.map((l, i) => <ListingRow key={l.uuid} t={t} lang={lang} l={l} eager={i < 2} />)}</div>
+            ) : (
+              <div className="results__empty">
+                <h3>{Li.nothingTitle}</h3>
+                <p className="lede" style={{ marginInline: "auto" }}>{Li.nothing}</p>
+                <a className="btn btn--ghost" href="#brief" style={{ marginTop: 24 }}>{t.nav.sendBrief}</a>
+              </div>
+            )}
+          </div>
         </section>
 
-        <section id="brief" className="section hair-top">
-          <div className="wrap split">
-            <div className="stack" style={{ gap: 18 }}>
-              <p className="eb">{t.brief.eyebrow}</p>
-              <h2 className="h2">{t.brief.title}</h2>
-              <p className="lead">{t.brief.lead}</p>
+        <section id="brief" className="section section--sand section--tight">
+          <div className="wrap">
+            <div className="brief-layout">
+              <div>
+                <p className="eyebrow">{t.brief.eyebrow}</p>
+                <h2>{t.brief.offMarketTitle}</h2>
+                <p>{t.brief.lead}</p>
+                <ul className="tick-list">
+                  {[t.home.tick1, t.home.tick2, t.home.tick3].map((x) => <li key={x}><Icon.tick />{x}</li>)}
+                </ul>
+              </div>
+              <div className="brief-card">
+                <p className="eyebrow eyebrow--plain">{t.brief.title}</p>
+                <BriefForm t={t} lang={lang} compact error={one(sp.error) === "brief"} />
+              </div>
             </div>
-            <BriefForm t={t} lang={lang} error={one(sp.error) === "brief"} />
           </div>
+        </section>
+
+        <section className="section section--tight">
+          <div className="wrap"><ExpertCard t={t} lang={lang} /></div>
         </section>
       </main>
       <SiteFooter t={t} lang={lang} />
     </>
   );
 }
+

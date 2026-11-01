@@ -30,7 +30,8 @@ const MODEL = process.env.AI_TEXT_MODEL || "deepseek/deepseek-v4-flash";
 
 const KEEP = "Keep unchanged: {placeholders} in curly braces, Invenio Homes, David Ramiro, Ref., €, numbers, place names, " +
   "e-mail addresses and these Spanish legal terms (they may be followed by a translation in brackets): nota simple, escritura, " +
-  "arras, cédula, certificado urbanístico, IBI.";
+  "arras, cédula, certificado urbanístico, IBI. A word between asterisks (*known*) is emphasised: keep the asterisks around " +
+  "the corresponding word in your translation.";
 
 /** Taken in the request itself (before entering the cache), where the deployment's OIDC token is available. */
 async function gatewayToken(): Promise<string | null> {
