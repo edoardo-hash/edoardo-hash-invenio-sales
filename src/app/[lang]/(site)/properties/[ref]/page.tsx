@@ -233,6 +233,11 @@ export default async function Property({ params, searchParams }: { params: Param
           </div>
         </section>
       </main>
+      {/* Phones: the price and the enquiry button stay in reach while the page is read (company site's mobile bar). */}
+      <div className="mobile-bar">
+        <div className="mobile-bar__price">{hidePrice ? P.priceLabel.replace("Ref. {ref} · ", "") : P.askingPriceLabel}<strong>{hidePrice ? P.onRequest : listingPrice(t, l)}</strong></div>
+        <a className="btn btn--small" href="#enquire">{P.request}</a>
+      </div>
       <SiteFooter t={t} lang={lang} />
     </>
   );

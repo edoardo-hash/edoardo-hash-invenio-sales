@@ -2085,9 +2085,10 @@ body[data-hero] .site-header:not(.is-stuck) .header-destinations { opacity: 0.82
 
 /* Villa page: the gallery without a lightbox script is plain figures; the approximate area is a ring over the map. */
 .gallery__item { display: block; }
-.map-frame--area::after { content: ""; position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; translate: -50% -50%; border-radius: 50%; border: 1.5px solid var(--clay); background: rgba(162, 98, 60, 0.14); pointer-events: none; }
+.map-frame--area::after { content: ""; position: absolute; left: 50%; top: 50%; width: 46%; aspect-ratio: 1; height: auto; translate: -50% -50%; /* the bbox is ~2.1 km wide: this ring is ~1 km */ border-radius: 50%; border: 1.5px solid var(--clay); background: rgba(162, 98, 60, 0.14); pointer-events: none; }
 .map-frame--area::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .panel-form .btn--ghost { margin-top: 0; }
+@media (max-width: 760px) { main:has(+ .mobile-bar) { padding-bottom: 84px; } }
 .thanks { padding: calc(var(--header) + clamp(60px, 9vw, 130px)) 0 var(--section); max-width: 760px; }
 .thanks h1 { margin-bottom: 22px; }
 .thanks .btn-row { margin-top: 30px; }
