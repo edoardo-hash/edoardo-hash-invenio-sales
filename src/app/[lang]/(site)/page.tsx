@@ -101,7 +101,6 @@ export default async function Home({ params }: { params: Params }) {
                 <img src="/assets/img/about.webp" alt={h.aboutAlt} loading="lazy" width="1600" height="1067" />
               </div>
               <div>
-                <p className="eyebrow">{h.differenceEyebrow}</p>
                 <h2>{h.differenceTitle}</h2>
                 <p>{h.differenceP1}</p>
                 <p>{h.differenceP2}</p>
@@ -109,8 +108,8 @@ export default async function Home({ params }: { params: Params }) {
               </div>
             </div>
             <div className="cards-grid cards-grid--three">
-              {[[h.pillar1Title, h.pillar1Text], [h.pillar2Title, h.pillar2Text], [h.pillar3Title, h.pillar3Text]].map(([title, text], i) => (
-                <div key={title} className="card-block"><p className="card-block__num">0{i + 1}</p><h3>{title}</h3><p>{text}</p></div>
+              {[[h.pillar1Title, h.pillar1Text], [h.pillar2Title, h.pillar2Text], [h.pillar3Title, h.pillar3Text]].map(([title, text]) => (
+                <div key={title} className="card-block"><h3>{title}</h3><p>{text}</p></div>
               ))}
             </div>
           </div>
@@ -222,7 +221,7 @@ export default async function Home({ params }: { params: Params }) {
         </section>
 
         <section className="section section--tight" id="about">
-          <div className="wrap"><ExpertCard t={t} lang={lang} text={h.contactLead} /></div>
+          <div className="wrap"><ExpertCard t={t} lang={lang} text={h.contactLead} cta={false} /></div>
         </section>
 
         <section className="cta">
@@ -232,7 +231,6 @@ export default async function Home({ params }: { params: Params }) {
           </div>
           <div className="wrap">
             <div className="cta__inner">
-              <p className="eyebrow eyebrow--light">{h.ctaEyebrow}</p>
               <h2><Em text={h.ctaTitle} /></h2>
               <p>{h.ctaText}</p>
               <div className="btn-row">

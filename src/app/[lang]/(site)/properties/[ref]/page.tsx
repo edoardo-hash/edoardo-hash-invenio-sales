@@ -196,6 +196,7 @@ export default async function Property({ params, searchParams }: { params: Param
                   <label className="check-line"><input type="checkbox" name="consent" required /><span>{P.consent}</span></label>
                   <button className="btn btn--block" type="submit" name="what" value="details">{P.request}</button>
                   <button className="btn btn--block btn--ghost" type="submit" name="what" value="viewing">{P.viewing}</button>
+                  <p className="panel-note" style={{ marginTop: 0 }}>{P.viewingNote}</p>
                 </form>
                 <div className="booking__contact">
                   <a href={`mailto:${DAVID.email}`}><Icon.mail /> {DAVID.email}</a>

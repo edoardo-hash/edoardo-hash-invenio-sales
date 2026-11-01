@@ -253,7 +253,7 @@ export function firstSentence(text: string): string {
 }
 
 /** David's card: the one contact on every page. */
-export function ExpertCard({ t, lang, text }: { t: Dict; lang: Lang; text?: string }) {
+export function ExpertCard({ t, lang, text, cta = true }: { t: Dict; lang: Lang; text?: string; cta?: boolean }) {
   return (
     <div className="expert-card">
       <div className="expert-card__initials" aria-hidden="true">DR</div>
@@ -267,7 +267,7 @@ export function ExpertCard({ t, lang, text }: { t: Dict; lang: Lang; text?: stri
           <a href={WA_GENERAL} target="_blank" rel="noopener"><Icon.chat /> WhatsApp</a>
         </div>
       </div>
-      <a className="btn btn--ghost" href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}<Arrow /></a>
+      {cta ? <a className="btn btn--ghost" href={`${href(lang, "/properties")}#brief`}>{t.nav.sendBrief}<Arrow /></a> : null}
     </div>
   );
 }

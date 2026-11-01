@@ -59,8 +59,8 @@ export default async function Sell({ params, searchParams }: { params: Params; s
               <div className="section-head__aside"><p className="lede">{S.exposureLead}</p></div>
             </div>
             <div className="cards-grid cards-grid--four">
-              {[[S.exp1, S.exp1Note], [S.exp2, S.exp2Note], [S.exp3, S.exp3Note], [S.exp4, S.exp4Note]].map(([title, text], i) => (
-                <div key={title} className="card-block"><p className="card-block__num">0{i + 1}</p><h3>{title}</h3><p>{text}</p></div>
+              {[[S.exp1, S.exp1Note], [S.exp2, S.exp2Note], [S.exp3, S.exp3Note], [S.exp4, S.exp4Note]].map(([title, text]) => (
+                <div key={title} className="card-block"><h3>{title}</h3><p>{text}</p></div>
               ))}
             </div>
           </div>
